@@ -3,7 +3,7 @@
     <!-- monaka: ダーク地(焦げ茶)× 小豆色。Dark テーマ + 明るいステータスバーアイコン -->
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="android:fontFamily">sans</item>
     </style>
 </resources>

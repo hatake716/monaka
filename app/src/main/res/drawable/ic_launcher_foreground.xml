@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   monaka ランチャーアイコン（前景）。
-  かわいい最中(もなか)キャラ: まん丸の皮に、にっこり笑顔とぷっくりほっぺ。
-  口の下に小さく `>_`(開発ツールのしるし)。小豆色(#9C4A3C)基調。
-  adaptive-icon のセーフゾーン(中央 66dp 径, viewport 108)内に顔を収める。
+  白背景に映える抽象的でかわいい最中(もなか): まる皮 + にっこり顔 +
+  下にのぞく餡 + まわりに浮かぶパステルの粒(ミント/水色/藤/コーラル)。
+  adaptive-icon のセーフゾーン(中央 66dp 径, viewport 108)内に収める。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,44 +11,23 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 影(接地感)。うっすら濃い小豆の細い楕円。 -->
-    <path android:fillColor="#4E271D" android:fillAlpha="0.55"
-        android:pathData="M54,88 m-19,0 a19,4.5 0,1 0,38 0 a19,4.5 0,1 0,-38 0" />
-
-    <!-- 本体: まん丸の最中の皮(きつね色クリーム)。中心(54,54) 半径30。 -->
-    <path android:fillColor="#E7B98B"
-        android:pathData="M24,54 a30,30 0,1 0,60 0 a30,30 0,1 0,-60 0 Z" />
-    <!-- 上半分の焼き色ハイライト(明るいクリーム)。y=46 の弦から上の円弧。
-         円との交点: x = 54 ± sqrt(30^2 - 8^2) = 54 ± 28.9 -> (25.1,46),(82.9,46) -->
-    <path android:fillColor="#F4D6B0"
-        android:pathData="M25.1,46 A30,30 0,0 1,82.9,46 Z" />
-    <!-- 下側のこんがり陰。y=66 の弦から下の円弧。
-         交点: x = 54 ± sqrt(900 - 12^2) = 54 ± 27.5 -> (26.5,66),(81.5,66) -->
-    <path android:fillColor="#D2A275"
-        android:pathData="M26.5,66 A30,30 0,0 0,81.5,66 Z" />
-
-    <!-- ほっぺ(小豆色のチーク・半透明)。目より外・下にずらして、ふんわり。 -->
-    <path android:fillColor="#6EC46752" android:pathData="M37,57 m-5.5,0 a5.5,4.2 0,1 0,11 0 a5.5,4.2 0,1 0,-11 0" />
-    <path android:fillColor="#6EC46752" android:pathData="M71,57 m-5.5,0 a5.5,4.2 0,1 0,11 0 a5.5,4.2 0,1 0,-11 0" />
-
-    <!-- 目(にっこり大きめ)。焦げ茶の丸い目 + 白ハイライトでうるうる。 -->
-    <path android:fillColor="#4A2A20" android:pathData="M45,49 m-4.6,0 a4.6,5.2 0,1 0,9.2 0 a4.6,5.2 0,1 0,-9.2 0" />
-    <path android:fillColor="#4A2A20" android:pathData="M63,49 m-4.6,0 a4.6,5.2 0,1 0,9.2 0 a4.6,5.2 0,1 0,-9.2 0" />
-    <path android:fillColor="#FBEFE0" android:pathData="M46.4,47 m-1.9,0 a1.9,1.9 0,1 0,3.8 0 a1.9,1.9 0,1 0,-3.8 0" />
-    <path android:fillColor="#FBEFE0" android:pathData="M64.4,47 m-1.9,0 a1.9,1.9 0,1 0,3.8 0 a1.9,1.9 0,1 0,-3.8 0" />
-    <path android:fillColor="#FBEFE0" android:fillAlpha="0.8" android:pathData="M43.8,51.5 m-0.9,0 a0.9,0.9 0,1 0,1.8 0 a0.9,0.9 0,1 0,-1.8 0" />
-    <path android:fillColor="#FBEFE0" android:fillAlpha="0.8" android:pathData="M61.8,51.5 m-0.9,0 a0.9,0.9 0,1 0,1.8 0 a0.9,0.9 0,1 0,-1.8 0" />
-
-    <!-- 口(にっこりカーブ) -->
-    <path android:strokeColor="#7A3B2E" android:strokeWidth="2.8"
-        android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"
-        android:pathData="M50,58 Q54,63 58,58" />
-
-    <!-- 口の下に小さく `>_`(開発ツールのしるし)。小豆色で控えめに。 -->
-    <path android:strokeColor="#9C4A3C" android:strokeWidth="2.1"
-        android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"
-        android:pathData="M49,66 L51.6,68 L49,70" />
-    <path android:strokeColor="#9C4A3C" android:strokeWidth="2.1"
-        android:strokeLineCap="round"
-        android:pathData="M55,70 L60,70" />
+    <path android:fillColor="#9AD4BB" android:fillAlpha="1.0" android:pathData="M23.6,42.0 a3.4,3.4 0 1 0 6.8,0 a3.4,3.4 0 1 0 -6.8,0 Z" />
+    <path android:fillColor="#A4C9E8" android:fillAlpha="1.0" android:pathData="M78.0,40.0 a3.0,3.0 0 1 0 6.0,0 a3.0,3.0 0 1 0 -6.0,0 Z" />
+    <path android:fillColor="#CBB6E6" android:fillAlpha="1.0" android:pathData="M79.8,68.0 a3.2,3.2 0 1 0 6.4,0 a3.2,3.2 0 1 0 -6.4,0 Z" />
+    <path android:fillColor="#F0A69A" android:fillAlpha="1.0" android:pathData="M22.2,66.0 a2.8,2.8 0 1 0 5.6,0 a2.8,2.8 0 1 0 -5.6,0 Z" />
+    <path android:fillColor="#F5E4C0" android:fillAlpha="1.0" android:pathData="M28.5,55.0 a25.5,25.5 0 1 0 51.0,0 a25.5,25.5 0 1 0 -51.0,0 Z" />
+    <path android:fillColor="#FCF4E1"
+        android:pathData="M30.5,49 A25.5,25.5 0 0 1 77.5,49 Q54,55 30.5,49 Z" />
+    <path android:fillColor="#E88C7C" android:fillAlpha="0.9"
+        android:pathData="M31,58 Q54,74 77,58 Q54,68 31,58 Z" />
+    <path android:fillColor="#F3A69E" android:fillAlpha="0.4"
+        android:pathData="M35,60 Q54,70 73,60 Q54,66 35,60 Z" />
+    <path android:fillColor="#F3A69E" android:fillAlpha="0.7" android:pathData="M36.9,58.0 a4.6,3.2 0 1 0 9.2,0 a4.6,3.2 0 1 0 -9.2,0 Z" />
+    <path android:fillColor="#F3A69E" android:fillAlpha="0.7" android:pathData="M61.9,58.0 a4.6,3.2 0 1 0 9.2,0 a4.6,3.2 0 1 0 -9.2,0 Z" />
+    <path android:fillColor="#6B5443" android:fillAlpha="1.0" android:pathData="M43.1,53.0 a2.9,2.9 0 1 0 5.8,0 a2.9,2.9 0 1 0 -5.8,0 Z" />
+    <path android:fillColor="#6B5443" android:fillAlpha="1.0" android:pathData="M59.1,53.0 a2.9,2.9 0 1 0 5.8,0 a2.9,2.9 0 1 0 -5.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="1.0" android:pathData="M46.0,51.9 a1.1,1.1 0 1 0 2.2,0 a1.1,1.1 0 1 0 -2.2,0 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="1.0" android:pathData="M62.0,51.9 a1.1,1.1 0 1 0 2.2,0 a1.1,1.1 0 1 0 -2.2,0 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#CF6E5E" android:strokeWidth="2.5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M50,58.5 Q54,63 58,58.5" />
 </vector>

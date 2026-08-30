@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- monaka: ダーク地(焦げ茶)に小豆色を組み合わせた和菓子・最中の配色 -->
-    <color name="ic_launcher_background">#1A1412</color>
+    <!-- monaka: アイコン背景は白。前景は抽象的でかわいい最中(パステル)。 -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- アプリ画面のウィンドウ背景はUIに合わせた焦げ茶ダーク（起動時のちらつき防止）。 -->
+    <color name="window_background">#1A1412</color>
 </resources>
