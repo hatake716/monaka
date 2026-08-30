@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      裏CCFA（sideload 専用 / Google Play 非公開）の権限セット。
+
+      全ファイルアクセス（Android 11+ の MANAGE_EXTERNAL_STORAGE）を使い、ユーザー権限で
+      読み書きできる共有ストレージ全体を Linux コンテナへ直接 bind mount する。
+      これは Play の制限付き権限だが、GitHub/直配布のみで公開しないため使用できる。
+
+      Android 10 以下（API 30 未満）では MANAGE_EXTERNAL_STORAGE が無いため、
+      従来の READ/WRITE_EXTERNAL_STORAGE + requestLegacyExternalStorage で全体アクセスする。
+      maxSdkVersion="29" を付け、11+ では自動的に無視させる。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <application
+        android:allowBackup="false"
+        android:extractNativeLibs="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".EmbeddedTerminalActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode"
+            android:exported="false" />
+
+        <activity
+            android:name=".ContainerManagerActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".StorageSettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".LegalActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>

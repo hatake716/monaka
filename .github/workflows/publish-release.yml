@@ -1,0 +1,171 @@
+name: Publish Release
+
+# タグ(v*)のpushで、公開CCFAソースから配布用APKをビルドし、
+# SHA-256を計算したうえでGitHub Releaseを作成・検証する。
+# 過去のような外部URLからの事前ビルドAPK取得には依存しない完全再現ビルド。
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "リリースするタグ (例: v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.repository == 'hatake716/CCFA'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing tag=$TAG version=$VERSION"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+
+      - name: Verify gradle version matches the tag
+        run: |
+          EXPECTED="${{ steps.ver.outputs.version }}"
+          grep -q "versionName = \"$EXPECTED\"" app/build.gradle.kts \
+            || { echo "app/build.gradle.kts versionName does not match tag $EXPECTED" >&2; exit 1; }
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 9.5.0
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Ensure Android SDK 36 is installed
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Install runtime packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils dpkg patchelf binutils file unzip
+
+      - name: Prepare Android PRoot runtime
+        run: bash scripts/prepare-termux-android-proot.sh
+
+      - name: Prepare distribution licenses and corresponding source
+        run: bash scripts/prepare-distribution-legal.sh
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Package distribution APK and checksum
+        id: pkg
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          SRC=app/build/outputs/apk/debug/app-debug.apk
+          OUT="URA-CCFA-v-ura-debug.apk"
+          test -f "$SRC"
+          # 配布に必須のネイティブライブラリとライセンス/対応ソースの同梱を検証
+          unzip -l "$SRC" | grep 'lib/arm64-v8a/libproot.so'
+          unzip -l "$SRC" | grep 'lib/arm64-v8a/libproot-loader.so'
+          unzip -l "$SRC" | grep 'lib/arm64-v8a/libandroid-shmem.so'
+          unzip -l "$SRC" | grep 'lib/arm64-v8a/libtalloc.so'
+          unzip -l "$SRC" | grep 'lib/arm64-v8a/libtermux.so'
+          unzip -l "$SRC" | grep 'assets/legal/NOTICE.txt'
+          unzip -l "$SRC" | grep 'assets/legal/licenses/GPL-2.0.txt'
+          unzip -l "$SRC" | grep 'assets/legal/licenses/LGPL-3.0.txt'
+          unzip -l "$SRC" | grep 'assets/legal/sources/proot-v5.1.107.92.zip'
+          cp "$SRC" "$OUT"
+          sha256sum "$OUT" | tee "$OUT.sha256"
+          SHA="$(cut -d' ' -f1 < "$OUT.sha256")"
+          echo "apk=$OUT"     >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA"  >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          SHA="${{ steps.pkg.outputs.sha256 }}"
+          cat > RELEASE_NOTES.md <<EOF
+          # 裏CCFA v${VERSION}
+
+          **裏CCFA(全ファイルアクセス版)** の sideload 専用リリースです（Google Play 非公開）。
+
+          ## 主な機能
+          - 外部Termuxアプリやroot権限なしで、アプリ内にLinuxコンテナ環境を構築
+          - 日本語IMEでかな漢字変換した文字列をPTYへ送れるアプリ内ターミナル
+          - ARM64 / arm64-v8a 対応
+          - 複数のLinux rootfsコンテナを作成・切替・削除
+          - ターミナル文字サイズ変更とPC向け補助キー
+          - **全ファイルアクセス権限で、端末の共有ストレージ全体をLinux側 \`/sdcard\`・\`/storage\` へ直接バインド(リアルタイム反映・コピーなし)**
+          - Claude Code 等から端末の全ユーザーファイルを読み書き可能
+          - 権限は「許可 / 許可しない」で切替
+          - 特定ベンダーのAI CLIは同梱・自動インストールしない
+
+          ## 応用: AIエージェント
+          Linux環境内に、CLI型のAIエージェントをユーザー自身が導入できます。各提供元の公式サイト・公式ドキュメントを確認し、その最新のLinux向けインストール・認証手順に従ってください。
+
+          ## 必要環境
+          - Android 8.0 / API 26 以降
+          - ARM64 / arm64-v8a 端末
+
+          ## APK署名について
+          この配布バイナリは開発時に生成された **debug署名のサイドロードビルド** です。将来のリリースが専用のリリース署名鍵へ切り替わる場合、Androidの仕様上、この署名のビルドを一度アンインストールしてからでないと新しいリリースを導入できないことがあります。
+
+          ## SHA-256
+          \`${SHA}\`
+          EOF
+          cat RELEASE_NOTES.md
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          APK="${{ steps.pkg.outputs.apk }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$APK.sha256" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "CCFA $TAG" \
+              --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" \
+              "$APK" "$APK.sha256" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "CCFA $TAG" \
+              --notes-file RELEASE_NOTES.md
+          fi
+
+      - name: Download published APK and verify checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          APK="${{ steps.pkg.outputs.apk }}"
+          SHA="${{ steps.pkg.outputs.sha256 }}"
+          rm -rf verify && mkdir -p verify
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --dir verify
+          echo "$SHA  verify/$APK" | sha256sum -c -

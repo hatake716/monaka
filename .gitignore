@@ -1,0 +1,31 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+app/build/
+
+# Generated during Gradle preBuild from the pinned upstream PRoot / Termux release.
+# (prepare-termux-android-proot.sh writes the .so, prepare-distribution-legal.sh the assets)
+app/src/main/jniLibs/
+app/src/main/assets/legal/licenses/
+app/src/main/assets/legal/sources/
+app/src/main/assets/legal/SOURCE-AND-LICENSE-MANIFEST.sha256
+app/src/main/assets/termux-runtime-packages.tsv
+
+# Google Play upload signing — never commit real keystores or their passwords.
+keystore.properties
+*.jks
+*.keystore
+upload-keystore.*
+
+# Gradle wrapper used only for local build verification (CI uses setup-gradle).
+/gradlew
+/gradlew.bat
+/gradle/wrapper/
+build-log.txt
+bundle-log.txt

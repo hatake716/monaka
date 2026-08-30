@@ -1,0 +1,21 @@
+CCFA (日本語入力対応Linuxコンテナ) — 法的情報 / Third-party notices
+
+CCFAは独立した非公式プロジェクトです。Anthropic PBC、Canonical Ltd.、Termux、Samba Team、Apache Software Foundationその他の第三者から承認・提携・後援を受けた製品ではありません。
+
+CCFA v1.0.0は、特定ベンダーのAI CLIをAPKへ同梱せず、自動ダウンロード・自動インストール・自動修復・自動ログイン・認証代理も行いません。第三者AI CLIを利用する場合は、利用者自身がLinuxシェル内で各提供元の公式手順・利用規約・プライバシーポリシー・認証条件に従って導入・認証します。CCFAは第三者のOAuthトークン、APIキー、サブスクリプション資格、アカウント権限、レート制限を代理提供しません。
+
+CCFA本体はApache License 2.0で提供します。APKには以下のオープンソース部品が含まれ、各部品にはそれぞれのライセンスが適用されます。
+
+- Termux PRoot 5.1.107.92 — GPL-2.0系
+- libandroid-shmem 0.7 — BSD-3-Clause
+- libtalloc 2.4.3 shared library — LGPL-3.0系（Termuxパッケージメタデータ: GPL-3.0）
+- Termux terminal-view / terminal-emulator 0.118.0 — TermuxがApache-2.0例外として明示するterminal modules
+- Apache Commons Compress 1.27.1 — Apache-2.0
+
+完全なライセンス本文と帰属通知はAPK内 assets/legal/licenses/ に、GPL/LGPL対象ネイティブコンポーネントの対応ソース一式は assets/legal/sources/ に同梱します。配布時にこれらのファイルを削除しないでください。
+
+Ubuntu BaseはAPKに同梱せず、ユーザー操作時にCanonical公式サーバーから端末へ直接取得します。「Ubuntu」はCanonicalの商標です。CCFAの製品名・アイコンにはUbuntuの名称・ロゴを使用しません。
+
+Claude、Claude Code、Anthropic等の名称は各権利者に帰属します。CCFAでは互換性履歴・法的/技術的説明など識別が必要な文脈に限定して言及し、第三者のロゴや公式製品と誤認させるブランド表示は使用しません。
+
+NO WARRANTY: CCFAおよび同梱オープンソース部品は、それぞれのライセンスで許容される範囲において無保証で提供されます。
