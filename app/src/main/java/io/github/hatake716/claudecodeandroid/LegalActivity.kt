@@ -41,7 +41,7 @@ class LegalActivity : Activity() {
             setOnClickListener { finish() }
         })
         content.addView(TextView(this).apply {
-            this.text = "裏CCFA 法的情報"
+            this.text = "monaka 法的情報"
             textSize = 28f
             setTextColor(this@LegalActivity.text)
             setTypeface(typeface, Typeface.BOLD)
@@ -63,7 +63,7 @@ class LegalActivity : Activity() {
         })
         content.addView(TextView(this).apply {
             this.text =
-                "裏CCFA自体が解析・広告・テレメトリー・アカウント等によるデータ収集を行うことはありません。" +
+                "monaka自体が解析・広告・テレメトリー・アカウント等によるデータ収集を行うことはありません。" +
                     "詳細は公開中のプライバシーポリシーを参照してください。"
             textSize = 13.5f
             setTextColor(this@LegalActivity.text)
@@ -129,7 +129,7 @@ class LegalActivity : Activity() {
 
         content.addView(TextView(this).apply {
             this.text =
-                "GPL/LGPL対象ネイティブ部品の対応ソースアーカイブと裏CCFA再パッケージスクリプトも、" +
+                "GPL/LGPL対象ネイティブ部品の対応ソースアーカイブとmonaka再パッケージスクリプトも、" +
                     "このAPKの assets/legal/sources/ に同梱されています。"
             textSize = 12.5f
             setTextColor(muted)
@@ -180,7 +180,7 @@ class LegalActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private companion object {
-        // 裏CCFA は sideload 専用のため、GitHub Pages ではなくリポジトリ内 PRIVACY.md を指す。
+        // monaka は sideload 専用のため、GitHub Pages ではなくリポジトリ内 PRIVACY.md を指す。
         const val PRIVACY_POLICY_URL = "https://github.com/hatake716/-CCFA/blob/main/PRIVACY.md"
     }
 }

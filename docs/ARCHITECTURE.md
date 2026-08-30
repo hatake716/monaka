@@ -84,7 +84,7 @@ Changes therefore apply from the next terminal launch.
 
 ## Android executable restriction and storage
 
-The Linux userland lives in app-private writable storage. 裏CCFA
+The Linux userland lives in app-private writable storage. monaka
 (the all-files-access / sideload-only build) intentionally uses:
 
 ```text
@@ -94,7 +94,7 @@ minSdk     26
 ```
 
 This is a technical choice for the direct/sideload distribution architecture
-and is **not** a Google Play configuration — 裏CCFA is not published on Play.
+and is **not** a Google Play configuration — monaka is not published on Play.
 
 `targetSdk 29` keeps the app just below the W^X restriction that Android
 enforces on the app data directory at targetSdk 29+, so PRoot continues to run
@@ -115,7 +115,7 @@ instead uses SAF mirror **copy** sync into the app-private `/workspace/phone/`.
 > **Upstream CCFA (Google Play build)**: raises `targetSdk` to 36, drops the
 > `MANAGE_EXTERNAL_STORAGE` permission, and replaces the direct bind mount with
 > SAF mirror sync to satisfy Play's scoped-storage and restricted-permission
-> policies. 裏CCFA reverses those two constraints for personal, sideload use.
+> policies. monaka reverses those two constraints for personal, sideload use.
 
 ## AI-agent policy
 

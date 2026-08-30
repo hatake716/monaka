@@ -96,7 +96,7 @@ object EmbeddedRuntimeManager {
         )
         required.forEach { (file, minimum) ->
             check(file.isFile && file.length() > minimum) {
-                "Android向けPRootランタイム ${file.name} がAPK内にありません。裏CCFAを再インストールしてください。"
+                "Android向けPRootランタイム ${file.name} がAPK内にありません。monakaを再インストールしてください。"
             }
         }
         prootBinary(context)
@@ -301,7 +301,7 @@ object EmbeddedRuntimeManager {
         }
 
         val args = baseProotArgs(context, rootfs).toMutableList()
-        // 裏CCFA: 共有ストレージは baseProotArgs 内で /sdcard・/storage として直接
+        // monaka: 共有ストレージは baseProotArgs 内で /sdcard・/storage として直接
         // bind 済み（全ファイルアクセス許可時）。SAF コピー同期は行わない。
         args += listOf(
             "/usr/bin/env", "-i",
@@ -347,7 +347,7 @@ object EmbeddedRuntimeManager {
             "--bind=/sys",
             "--bind=${workspaceDir(context).canonical()}:/workspace"
         )
-        // 裏CCFA: 全ファイルアクセス（MANAGE_EXTERNAL_STORAGE）が許可されている場合、
+        // monaka: 全ファイルアクセス（MANAGE_EXTERNAL_STORAGE）が許可されている場合、
         // 共有ストレージ全体を Linux 側へ直接 bind mount する。SAF のようなコピーでは
         // ないため、Android 側 / Linux 側どちらの書き込みも即座に相手へ反映される
         // （＝実ファイルを共有する真のリアルタイム同期）。
@@ -384,7 +384,7 @@ object EmbeddedRuntimeManager {
         return binds
     }
 
-    /** 全ファイルアクセス権限が付与されているか（裏CCFA では bind mount の可否を表す）。 */
+    /** 全ファイルアクセス権限が付与されているか（monaka では bind mount の可否を表す）。 */
     fun hasSharedStorageAccess(context: Context): Boolean =
         AllFilesAccessManager.hasAccess(context)
 
@@ -398,7 +398,7 @@ object EmbeddedRuntimeManager {
         File(rootfs, "root").mkdirs()
         File(rootfs, "workspace").mkdirs()
         File(rootfs, "phone").mkdirs()
-        // 裏CCFA: 共有ストレージの bind mount 先を用意する（全ファイルアクセス許可時に
+        // monaka: 共有ストレージの bind mount 先を用意する（全ファイルアクセス許可時に
         // /storage/emulated/0 → /sdcard、/storage → /storage を bind する）。
         File(rootfs, "sdcard").mkdirs()
         File(rootfs, "storage").mkdirs()

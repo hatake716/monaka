@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      裏CCFA（sideload 専用 / Google Play 非公開）の権限セット。
+      monaka（sideload 専用 / Google Play 非公開）の権限セット。
 
       全ファイルアクセス（Android 11+ の MANAGE_EXTERNAL_STORAGE）を使い、ユーザー権限で
       読み書きできる共有ストレージ全体を Linux コンテナへ直接 bind mount する。

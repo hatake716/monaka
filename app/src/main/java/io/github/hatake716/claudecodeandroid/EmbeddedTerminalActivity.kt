@@ -72,15 +72,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     private var shiftPressed = false
     private var fontSizePx = 0
 
-    // 裏CCFA配色（CCFA 暖色ライトの反対 = 寒色ダーク）
-    private val pageColor = Color.rgb(11, 14, 21)
-    private val cardColor = Color.rgb(21, 26, 36)
-    private val borderColor = Color.rgb(40, 50, 63)
-    private val textColor = Color.rgb(210, 228, 235)
-    private val mutedColor = Color.rgb(132, 148, 166)
-    private val terminalColor = Color.rgb(8, 11, 17)
-    private val terminalText = Color.rgb(198, 224, 232)
-    private val accent = Color.rgb(66, 167, 201)
+    // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
+    private val pageColor = Color.rgb(26, 20, 18)
+    private val cardColor = Color.rgb(38, 28, 25)
+    private val borderColor = Color.rgb(74, 52, 45)
+    private val textColor = Color.rgb(237, 224, 214)
+    private val mutedColor = Color.rgb(176, 150, 138)
+    private val terminalColor = Color.rgb(20, 15, 13)
+    private val terminalText = Color.rgb(237, 224, 214)
+    private val accent = Color.rgb(156, 74, 60)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,7 +128,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             setPadding(dp(6), 0, dp(4), 0)
         }
         titleView = TextView(this).apply {
-            text = "裏CCFA Terminal"
+            text = "monaka Terminal"
             textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(textColor)
@@ -214,7 +214,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             hint = "メッセージ / コマンドを入力…"
             textSize = 16f
             setTextColor(textColor)
-            setHintTextColor(Color.rgb(108, 122, 138))
+            setHintTextColor(Color.rgb(138, 116, 106))
             background = null
             gravity = Gravity.TOP or Gravity.START
             minLines = 1
@@ -293,7 +293,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(4), dp(4), dp(4), dp(6))
-            setBackgroundColor(Color.rgb(14, 18, 26))
+            setBackgroundColor(Color.rgb(30, 22, 19))
         }
 
         outer.addView(keyRow(listOf(
@@ -336,7 +336,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 isAllCaps = false
                 textSize = 12f
                 setTextColor(terminalText)
-                setBackgroundColor(Color.rgb(34, 43, 56))
+                setBackgroundColor(Color.rgb(58, 42, 36))
                 minWidth = dp(66)
                 minHeight = dp(42)
                 setPadding(dp(8), 0, dp(8), 0)
@@ -365,7 +365,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             ModifierKey.ALT -> (!altPressed).also { altPressed = it }
             ModifierKey.SHIFT -> (!shiftPressed).also { shiftPressed = it }
         }
-        button.setBackgroundColor(if (enabled) accent else Color.rgb(34, 43, 56))
+        button.setBackgroundColor(if (enabled) accent else Color.rgb(58, 42, 36))
         terminalView.requestFocus()
     }
 
@@ -395,8 +395,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             }
 
         val displayTitle = when (launchMode) {
-            EmbeddedRuntimeManager.LaunchMode.SHELL -> "$container — 裏CCFA Terminal"
-            EmbeddedRuntimeManager.LaunchMode.COMMAND -> "$container — 裏CCFA Task"
+            EmbeddedRuntimeManager.LaunchMode.SHELL -> "$container — monaka Terminal"
+            EmbeddedRuntimeManager.LaunchMode.COMMAND -> "$container — monaka Task"
         }
         titleView.text = displayTitle
         statusView.text = "アプリ内PTY · $container"

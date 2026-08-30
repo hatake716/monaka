@@ -21,20 +21,42 @@ class MainActivity : Activity() {
         private const val BASE_DEV_SETUP =
             "apt-get -o Acquire::Retries=3 update && " +
                 "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y ca-certificates curl git ripgrep locales"
+
+        // Claude Code 自動インストール。
+        // 1. 依存(curl/ca-certificates/git/ripgrep)を用意
+        // 2. Anthropic 公式インストーラ(glibc arm64 バイナリ)を guest 内へ導入
+        //    - guest rootfs 内に導入し guest パスから起動するため #86798 の無限再起動を回避
+        // 3. PATH に ~/.local/bin を通し、次回以降 claude で起動できるようにする
+        // 4. バージョンを表示して導入完了を確認
+        private const val INSTALL_CLAUDE_CODE =
+            "set -e; " +
+                "echo '== 依存パッケージを準備しています =='; " +
+                "apt-get -o Acquire::Retries=3 update; " +
+                "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y ca-certificates curl git ripgrep; " +
+                "echo; echo '== Claude Code 公式インストーラを実行しています =='; " +
+                "curl -fsSL https://claude.ai/install.sh | bash; " +
+                "grep -q '.local/bin' ~/.bashrc 2>/dev/null || " +
+                "echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc; " +
+                "export PATH=\"\$HOME/.local/bin:\$PATH\"; " +
+                "echo; echo '== 導入結果 =='; " +
+                "( claude --version && echo && " +
+                "echo 'インストール完了。次回からターミナルで claude を実行できます。' && " +
+                "echo '初回は claude を起動し、画面の案内に従ってご自身のアカウントで認証してください。' ) || " +
+                "( echo 'claude の起動確認に失敗しました。ターミナルで PATH を確認してください。'; exit 1 )"
     }
 
-    // 裏CCFA配色: CCFA の暖色ライト(#F4F1EA / テラコッタ #C96442)の反対。
-    // 寒色ダークネイビー地 + 補色シアン(#42A7C9)アクセント。
-    private val page = Color.rgb(11, 14, 21)
-    private val card = Color.rgb(21, 26, 36)
-    private val text = Color.rgb(210, 228, 235)
-    private val muted = Color.rgb(132, 148, 166)
-    private val border = Color.rgb(40, 50, 63)
-    private val soft = Color.rgb(28, 36, 48)
-    private val accent = Color.rgb(66, 167, 201)
-    private val accentDark = Color.rgb(45, 130, 160)
-    private val danger = Color.rgb(224, 122, 95)
-    private val terminal = Color.rgb(8, 11, 17)
+    // monaka配色: 和菓子・最中(もなか)。焦げ茶のダーク地に小豆色(あずき)のアクセント。
+    // page=焦げ茶 #1A1412 / accent=小豆 #9C4A3C / text=最中種の皮クリーム #EDE0D6。
+    private val page = Color.rgb(26, 20, 18)
+    private val card = Color.rgb(38, 28, 25)
+    private val text = Color.rgb(237, 224, 214)
+    private val muted = Color.rgb(176, 150, 138)
+    private val border = Color.rgb(74, 52, 45)
+    private val soft = Color.rgb(48, 35, 31)
+    private val accent = Color.rgb(156, 74, 60)
+    private val accentDark = Color.rgb(122, 59, 46)
+    private val danger = Color.rgb(210, 140, 90)
+    private val terminal = Color.rgb(20, 15, 13)
 
     private lateinit var setupProgress: ProgressBar
     private lateinit var setupOperationText: TextView
@@ -63,13 +85,13 @@ class MainActivity : Activity() {
         }
 
         content.addView(TextView(this).apply {
-            text = "裏CCFA"
+            text = "monaka"
             textSize = 32f
             setTextColor(accent)
             setTypeface(typeface, Typeface.BOLD)
         })
         content.addView(TextView(this).apply {
-            text = "全ファイルアクセス版 · 日本語入力対応Linuxコンテナ"
+            text = "全ファイルアクセス · Claude Code 対応 Linux コンテナ"
             textSize = 15f
             setTextColor(muted)
             setPadding(0, dp(2), 0, dp(18))
@@ -89,19 +111,22 @@ class MainActivity : Activity() {
     }
 
     private fun agentCard(): View {
-        val section = section("エージェント環境", "日本語IMEコンポーザー + PCキー + アプリ内PTY")
-        section.addView(primary("エージェントターミナルを開く") {
+        val section = section("Claude Code", "公式インストーラでLinuxコンテナへ自動導入")
+        section.addView(primary("Claude Code をインストール") { installClaudeCode() }, top(dp(14)))
+        section.addView(button("エージェントターミナルを開く") {
             launch(EmbeddedRuntimeManager.LaunchMode.SHELL)
-        }, top(dp(14)))
+        }, top(dp(8)))
         section.addView(help(
-            "裏CCFA配布版は特定ベンダーのAI CLIを自動インストール・自動ログインしません。" +
-                "利用したいCLIはLinuxシェル内で、各提供元の条件を確認したうえでユーザー自身が導入・認証してください。"
+            "「インストール」を押すと、Linuxコンテナ内で Anthropic 公式インストーラ" +
+                "（claude.ai/install.sh）を実行し、Claude Code を導入します。導入後は" +
+                "ターミナルで claude を起動し、画面の案内に従って各自のアカウントで認証してください" +
+                "（monaka は認証情報を代理取得・保存しません）。"
         ))
         section.addView(TextView(this).apply {
             text = "ESC   CTRL   ALT   TAB   ↑   HOME   END\nPGUP   ←   ↓   →   PGDN   BKSP   ENTER"
             textSize = 12.5f
             gravity = Gravity.CENTER
-            setTextColor(Color.rgb(198, 224, 232))
+            setTextColor(Color.rgb(237, 224, 214))
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = rounded(terminal, terminal, 10)
         }, top(dp(10)))
@@ -146,7 +171,7 @@ class MainActivity : Activity() {
     }
 
     private fun setupCard(): View {
-        val section = section("初回セットアップ", "裏CCFAのLinuxコンテナ実行環境をこのAPK内に構築")
+        val section = section("初回セットアップ", "monakaのLinuxコンテナ実行環境をこのAPK内に構築")
         setupButton = primary("初期Linux環境を作成") { createInitialRuntime() }
         section.addView(setupButton, top(dp(8)))
 
@@ -168,7 +193,7 @@ class MainActivity : Activity() {
         section.addView(setupOperationText, top(dp(8)))
         section.addView(help(
             "Linux Baseイメージは提供元公式サーバーから端末へ直接取得します。" +
-                "裏CCFAは第三者AI CLI、第三者アカウント認証、APIキーを配布・代理取得しません。"
+                "monakaは第三者AI CLI、第三者アカウント認証、APIキーを配布・代理取得しません。"
         ))
         section.addView(help(
             "各種AIエージェントの実装は、それぞれの公式サイトを確認したうえで、インストール手順に従ってください。"
@@ -258,7 +283,44 @@ class MainActivity : Activity() {
         startActivity(EmbeddedTerminalActivity.intent(this, active, mode))
     }
 
-    // 裏CCFA（sideload 専用）は全ファイルアクセス権限を使う。
+    /**
+     * Claude Code を Linux コンテナへ自動インストールする。
+     * コンテナが無ければ先に作成を促し、あれば公式インストーラを COMMAND モードの
+     * ターミナルで実行する（進捗と結果はターミナルに表示される）。
+     */
+    private fun installClaudeCode() {
+        val active = EmbeddedRuntimeManager.activeContainer(this)
+        if (active == null) {
+            AlertDialog.Builder(this)
+                .setTitle("Linux環境がありません")
+                .setMessage("Claude Code を入れる前に、先に「初期Linux環境を作成」を実行してください。")
+                .setPositiveButton("環境を作成") { _, _ -> createInitialRuntime() }
+                .setNegativeButton("キャンセル", null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Claude Code をインストール")
+            .setMessage(
+                "Linuxコンテナ「$active」内で Anthropic 公式インストーラ" +
+                    "（claude.ai/install.sh）を実行します。ネットワーク通信が発生し、" +
+                    "数分かかることがあります。続行しますか？"
+            )
+            .setPositiveButton("インストール") { _, _ ->
+                startActivity(
+                    EmbeddedTerminalActivity.intent(
+                        this,
+                        active,
+                        EmbeddedRuntimeManager.LaunchMode.COMMAND,
+                        INSTALL_CLAUDE_CODE
+                    )
+                )
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    // monaka（sideload 専用）は全ファイルアクセス権限を使う。
     // 権限の許可/取消と /sdcard バインドの説明画面へ誘導する。
     private fun openStorageSharing() {
         startActivity(Intent(this, StorageSettingsActivity::class.java))

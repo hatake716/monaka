@@ -50,20 +50,22 @@ jobs:
       - name: Prepare distribution licenses and corresponding source
         run: bash scripts/prepare-distribution-legal.sh
 
-      - name: Verify 裏CCFA source
+      - name: Verify monaka source
         run: |
-          # 裏CCFA（全ファイルアクセス版 / sideload 専用）の要点を検証する。
-          grep -q '裏CCFA(全ファイルアクセス版)' app/src/main/res/values/strings.xml
+          # monaka（全ファイルアクセス版 / sideload 専用）の要点を検証する。
+          grep -q '>monaka<' app/src/main/res/values/strings.xml
           grep -q 'StorageSettingsActivity' app/src/main/AndroidManifest.xml
           # 全ファイルアクセス権限と直接 bind mount 実装が入っていること。
           grep -q 'MANAGE_EXTERNAL_STORAGE' app/src/main/AndroidManifest.xml
           grep -q 'AllFilesAccessManager' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedRuntimeManager.kt
           grep -q 'sharedStorageBindArgs' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedRuntimeManager.kt
           grep -q 'メッセージ / コマンドを入力' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
+          # Claude Code 自動インストール機能が入っていること（公式インストーラを使用）。
+          grep -q 'claude.ai/install.sh' app/src/main/java/io/github/hatake716/claudecodeandroid/MainActivity.kt
+          grep -q 'installClaudeCode' app/src/main/java/io/github/hatake716/claudecodeandroid/MainActivity.kt
           # SAF コピー同期は廃止済み（旧クラスが残っていないこと）。
           ! test -f app/src/main/java/io/github/hatake716/claudecodeandroid/StorageShareManager.kt
           ! test -f app/src/main/java/io/github/hatake716/claudecodeandroid/SafSyncManager.kt
-          ! grep -R -q 'claude.ai' app/src/main/java
           ! grep -R -q 'com.termux.permission.RUN_COMMAND' app/src/main
 
       - name: Build debug APK
@@ -72,7 +74,7 @@ jobs:
       - name: Verify distribution APK
         run: |
           SRC=app/build/outputs/apk/debug/app-debug.apk
-          OUT=app/build/outputs/apk/debug/URA-CCFA-v1.0.0-ura-debug.apk
+          OUT=app/build/outputs/apk/debug/monaka-v1.0.0-debug.apk
           test -f "$SRC"
           unzip -l "$SRC" | grep 'lib/arm64-v8a/libproot.so'
           unzip -l "$SRC" | grep 'lib/arm64-v8a/libproot-loader.so'
@@ -89,9 +91,9 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ccfa-v1.0.0-distribution-debug
+          name: monaka-v1.0.0-distribution-debug
           if-no-files-found: error
           retention-days: 14
           path: |
-            app/build/outputs/apk/debug/URA-CCFA-v1.0.0-ura-debug.apk
-            app/build/outputs/apk/debug/URA-CCFA-v1.0.0-ura-debug.apk.sha256
+            app/build/outputs/apk/debug/monaka-v1.0.0-debug.apk
+            app/build/outputs/apk/debug/monaka-v1.0.0-debug.apk.sha256

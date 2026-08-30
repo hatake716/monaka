@@ -16,7 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * スマートフォンストレージ設定（裏CCFA / sideload 専用）。
+ * スマートフォンストレージ設定（monaka / sideload 専用）。
  *
  * CCFA(Google Play 版)の「SAF でフォルダを選んで手動ミラー同期」を廃止し、
  * 「全ユーザーファイルの読み込み・書き込みを可能にする権限」を許可 / 許可しない
@@ -27,16 +27,16 @@ import android.widget.Toast
  * （コピー同期ではないため容量も二重にならない）。
  */
 class StorageSettingsActivity : Activity() {
-    // 裏CCFA配色（CCFA 暖色ライトの反対 = 寒色ダーク）
-    private val page = Color.rgb(11, 14, 21)
-    private val card = Color.rgb(21, 26, 36)
-    private val text = Color.rgb(210, 228, 235)
-    private val muted = Color.rgb(132, 148, 166)
-    private val border = Color.rgb(40, 50, 63)
-    private val soft = Color.rgb(28, 36, 48)
-    private val accent = Color.rgb(66, 167, 201)
-    private val accentDark = Color.rgb(45, 130, 160)
-    private val danger = Color.rgb(224, 122, 95)
+    // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
+    private val page = Color.rgb(26, 20, 18)
+    private val card = Color.rgb(38, 28, 25)
+    private val text = Color.rgb(237, 224, 214)
+    private val muted = Color.rgb(176, 150, 138)
+    private val border = Color.rgb(74, 52, 45)
+    private val soft = Color.rgb(48, 35, 31)
+    private val accent = Color.rgb(156, 74, 60)
+    private val accentDark = Color.rgb(122, 59, 46)
+    private val danger = Color.rgb(210, 140, 90)
 
     private lateinit var statusView: TextView
     private lateinit var toggleButton: Button
@@ -123,7 +123,7 @@ class StorageSettingsActivity : Activity() {
             text = "注意: この権限を許可しても、他アプリの専用データ領域（/data/data や " +
                 "/Android/data 配下）は Android の仕様上アクセスできません。ここでの" +
                 "「全ファイル」は、ユーザー権限で読み書きできる共有ストレージ全体を指します。\n\n" +
-                "裏CCFA は Google Play に公開しない sideload 専用構成です。強力な権限のため、" +
+                "monaka は Google Play に公開しない sideload 専用構成です。強力な権限のため、" +
                 "信頼できる用途にのみ使用してください。"
             textSize = 12.5f
             setTextColor(muted)
@@ -170,7 +170,7 @@ class StorageSettingsActivity : Activity() {
                         "「すべてのファイルへのアクセス」を無効にすると、Linux 側 /sdcard の" +
                             "マウントが次回起動から外れます。"
                     else
-                        "次の画面で「裏CCFA」の「すべてのファイルへのアクセス」を" +
+                        "次の画面で「monaka」の「すべてのファイルへのアクセス」を" +
                             "オンにしてから戻ってください。"
                 )
                 .setPositiveButton("開く") { _, _ -> runCatching { startActivity(intent) } }

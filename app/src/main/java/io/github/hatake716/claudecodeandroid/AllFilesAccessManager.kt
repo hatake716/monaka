@@ -8,10 +8,10 @@ import android.os.Environment
 import android.provider.Settings
 
 /**
- * 裏CCFA（sideload 専用）の「全ファイルアクセス」権限を管理する。
+ * monaka（sideload 専用）の「全ファイルアクセス」権限を管理する。
  *
  * CCFA(Google Play 版)は scoped storage の制約から SAF で選んだフォルダだけを
- * filesDir 内へコピー同期していた。裏CCFA は Play に公開しない前提で、
+ * filesDir 内へコピー同期していた。monaka は Play に公開しない前提で、
  * Android 11+ の [MANAGE_EXTERNAL_STORAGE]（すべてのファイルへのアクセス）を使い、
  * ユーザー権限で読み書きできる共有ストレージ全体を Linux 側 /sdcard へ
  * 直接 bind mount する（[EmbeddedRuntimeManager.baseProotArgs] 参照）。

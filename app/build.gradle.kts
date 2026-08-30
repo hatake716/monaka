@@ -111,9 +111,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // 裏CCFA（sideload 専用 / Google Play 非公開）の独立アプリケーションID。
+        // monaka（sideload 専用 / Google Play 非公開）の独立アプリケーションID。
         // CCFA(io.github.hatake716.ccfa) と別 ID にして同一端末に共存できるようにする。
-        applicationId = "io.github.hatake716.ccfa.ura"
+        applicationId = "io.github.hatake716.monaka"
         minSdk = 26
         // 裏CCFA は Google Play に公開しないため、Play の最新 targetSdk 要件に縛られない。
         // targetSdk 29 に据え置くことで:
@@ -126,7 +126,7 @@ android {
         //     nativeLibraryDir から実行する既存構成もそのまま動作する。
         targetSdk = 29
         versionCode = 1
-        versionName = "1.0.0-ura"
+        versionName = "1.0.0-monaka"
 
         // arm64-v8a 専用ランタイム。AAB の ABI 分割で余計な split を作らないよう明示。
         ndk {

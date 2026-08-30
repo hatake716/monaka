@@ -1,6 +1,6 @@
 name: Publish Release
 
-# タグ(v*)のpushで、公開CCFAソースから配布用APKをビルドし、
+# タグ(v*)のpushで、monaka ソースから配布用APKをビルドし、
 # SHA-256を計算したうえでGitHub Releaseを作成・検証する。
 # 過去のような外部URLからの事前ビルドAPK取得には依存しない完全再現ビルド。
 
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   release:
-    if: github.repository == 'hatake716/CCFA'
+    if: github.repository == 'hatake716/-CCFA'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -84,7 +84,7 @@ jobs:
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
           SRC=app/build/outputs/apk/debug/app-debug.apk
-          OUT="URA-CCFA-v-ura-debug.apk"
+          OUT="monaka-v${VERSION}-debug.apk"
           test -f "$SRC"
           # 配布に必須のネイティブライブラリとライセンス/対応ソースの同梱を検証
           unzip -l "$SRC" | grep 'lib/arm64-v8a/libproot.so'
@@ -107,9 +107,9 @@ jobs:
           VERSION="${{ steps.ver.outputs.version }}"
           SHA="${{ steps.pkg.outputs.sha256 }}"
           cat > RELEASE_NOTES.md <<EOF
-          # 裏CCFA v${VERSION}
+          # monaka v${VERSION}
 
-          **裏CCFA(全ファイルアクセス版)** の sideload 専用リリースです（Google Play 非公開）。
+          **monaka(全ファイルアクセス版)** の sideload 専用リリースです（Google Play 非公開）。
 
           ## 主な機能
           - 外部Termuxアプリやroot権限なしで、アプリ内にLinuxコンテナ環境を構築
@@ -120,10 +120,10 @@ jobs:
           - **全ファイルアクセス権限で、端末の共有ストレージ全体をLinux側 \`/sdcard\`・\`/storage\` へ直接バインド(リアルタイム反映・コピーなし)**
           - Claude Code 等から端末の全ユーザーファイルを読み書き可能
           - 権限は「許可 / 許可しない」で切替
-          - 特定ベンダーのAI CLIは同梱・自動インストールしない
+          - **Claude Code をワンタップで自動インストール(Anthropic 公式インストーラを実行)**
 
-          ## 応用: AIエージェント
-          Linux環境内に、CLI型のAIエージェントをユーザー自身が導入できます。各提供元の公式サイト・公式ドキュメントを確認し、その最新のLinux向けインストール・認証手順に従ってください。
+          ## Claude Code の導入
+          メイン画面の「Claude Code をインストール」を押すと、Linuxコンテナ内で Anthropic 公式インストーラ(claude.ai/install.sh)を実行して自動導入します。認証は各自のアカウントでユーザー自身が行ってください(monaka は認証情報を代理取得・保存しません)。
 
           ## 必要環境
           - Android 8.0 / API 26 以降
@@ -148,14 +148,14 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "CCFA $TAG" \
+              --title "monaka $TAG" \
               --notes-file RELEASE_NOTES.md
           else
             gh release create "$TAG" \
               "$APK" "$APK.sha256" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "CCFA $TAG" \
+              --title "monaka $TAG" \
               --notes-file RELEASE_NOTES.md
           fi
 

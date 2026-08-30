@@ -26,15 +26,15 @@ class ContainerManagerActivity : Activity() {
                 "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y ca-certificates curl git ripgrep locales"
     }
 
-    // 裏CCFA配色（CCFA 暖色ライトの反対 = 寒色ダーク）
-    private val page = Color.rgb(11, 14, 21)
-    private val card = Color.rgb(21, 26, 36)
-    private val text = Color.rgb(210, 228, 235)
-    private val muted = Color.rgb(132, 148, 166)
-    private val border = Color.rgb(40, 50, 63)
-    private val soft = Color.rgb(28, 36, 48)
-    private val accent = Color.rgb(66, 167, 201)
-    private val danger = Color.rgb(224, 122, 95)
+    // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
+    private val page = Color.rgb(26, 20, 18)
+    private val card = Color.rgb(38, 28, 25)
+    private val text = Color.rgb(237, 224, 214)
+    private val muted = Color.rgb(176, 150, 138)
+    private val border = Color.rgb(74, 52, 45)
+    private val soft = Color.rgb(48, 35, 31)
+    private val accent = Color.rgb(156, 74, 60)
+    private val danger = Color.rgb(210, 140, 90)
 
     private lateinit var activeText: TextView
     private lateinit var listHost: LinearLayout
@@ -66,13 +66,13 @@ class ContainerManagerActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
         })
         content.addView(TextView(this).apply {
-            this.text = "裏CCFAのLinux環境をアプリ内に複数保持"
+            this.text = "monakaのLinux環境をアプリ内に複数保持"
             textSize = 14f
             setTextColor(muted)
             setPadding(0, dp(3), 0, dp(16))
         })
 
-        val activeCard = section("アクティブコンテナ", "裏CCFAのターミナルが使用する環境")
+        val activeCard = section("アクティブコンテナ", "monakaのターミナルが使用する環境")
         activeText = badge("確認中…")
         activeCard.addView(activeText, top(dp(12)))
         addRow(
@@ -143,7 +143,7 @@ class ContainerManagerActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(11), dp(12), dp(11))
                 background = rounded(
-                    if (selected) Color.rgb(23, 45, 55) else soft,
+                    if (selected) Color.rgb(58, 34, 28) else soft,
                     if (selected) accent else border,
                     12
                 )
@@ -351,7 +351,7 @@ class ContainerManagerActivity : Activity() {
     private fun primary(value: String, click: () -> Unit) = styled(value, accent, Color.WHITE, click)
     private fun button(value: String, click: () -> Unit) = styled(value, soft, text, click)
     private fun dangerButton(value: String, click: () -> Unit) =
-        styled(value, Color.rgb(46, 26, 22), danger, click)
+        styled(value, Color.rgb(56, 32, 24), danger, click)
 
     private fun styled(value: String, bg: Int, fg: Int, click: () -> Unit) = Button(this).apply {
         text = value
