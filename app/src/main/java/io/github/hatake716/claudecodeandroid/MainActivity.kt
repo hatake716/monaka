@@ -97,10 +97,13 @@ class MainActivity : Activity() {
             setPadding(0, dp(2), 0, dp(18))
         })
 
-        content.addView(agentCard())
+        // 最上段はエージェントターミナル（最重要）。以降は初回セットアップ →
+        // Linuxコンテナ → スマートフォンストレージ → Claude Code の順。
+        content.addView(terminalCard())
+        content.addView(setupCard(), top(dp(14)))
         content.addView(containerCard(), top(dp(14)))
         content.addView(storageCard(), top(dp(14)))
-        content.addView(setupCard(), top(dp(14)))
+        content.addView(claudeCard(), top(dp(14)))
         content.addView(legalCard(), top(dp(14)))
 
         return ScrollView(this).apply {
@@ -110,17 +113,14 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun agentCard(): View {
-        val section = section("Claude Code", "公式インストーラでLinuxコンテナへ自動導入")
-        section.addView(primary("Claude Code をインストール") { installClaudeCode() }, top(dp(14)))
-        section.addView(button("エージェントターミナルを開く") {
+    private fun terminalCard(): View {
+        val section = section("エージェントターミナル", "日本語IMEコンポーザー + PCキー + アプリ内PTY")
+        section.addView(primary("エージェントターミナルを開く") {
             launch(EmbeddedRuntimeManager.LaunchMode.SHELL)
-        }, top(dp(8)))
+        }, top(dp(14)))
         section.addView(help(
-            "「インストール」を押すと、Linuxコンテナ内で Anthropic 公式インストーラ" +
-                "（claude.ai/install.sh）を実行し、Claude Code を導入します。導入後は" +
-                "ターミナルで claude を起動し、画面の案内に従って各自のアカウントで認証してください" +
-                "（monaka は認証情報を代理取得・保存しません）。"
+            "アクティブなLinuxコンテナのシェルをアプリ内ターミナルで開きます。" +
+                "claude を導入済みなら、ここで claude を起動して使えます。"
         ))
         section.addView(TextView(this).apply {
             text = "ESC   CTRL   ALT   TAB   ↑   HOME   END\nPGUP   ←   ↓   →   PGDN   BKSP   ENTER"
@@ -130,6 +130,18 @@ class MainActivity : Activity() {
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = rounded(terminal, terminal, 10)
         }, top(dp(10)))
+        return section
+    }
+
+    private fun claudeCard(): View {
+        val section = section("Claude Code", "公式インストーラでLinuxコンテナへ自動導入")
+        section.addView(primary("Claude Code をインストール") { installClaudeCode() }, top(dp(14)))
+        section.addView(help(
+            "「インストール」を押すと、Linuxコンテナ内で Anthropic 公式インストーラ" +
+                "（claude.ai/install.sh）を実行し、Claude Code を導入します。導入後は" +
+                "「エージェントターミナル」で claude を起動し、画面の案内に従って各自の" +
+                "アカウントで認証してください（monaka は認証情報を代理取得・保存しません）。"
+        ))
         return section
     }
 

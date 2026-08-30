@@ -178,7 +178,7 @@ class ContainerManagerActivity : Activity() {
     private fun showCreateDialog() {
         val input = EditText(this).apply {
             setText(nextName())
-            hint = "ccfa-linux-2"
+            hint = "monaka-linux-2"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
             setSingleLine(true)
         }

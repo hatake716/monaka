@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 
 /** Owns the Linux runtime completely inside CCFA. */
 object EmbeddedRuntimeManager {
-    const val DEFAULT_CONTAINER = "ccfa-linux"
+    const val DEFAULT_CONTAINER = "monaka-linux"
     const val UBUNTU_RELEASE = "24.04.4"
 
     private const val UBUNTU_BASE_URL =
