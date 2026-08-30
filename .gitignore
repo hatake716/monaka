@@ -29,3 +29,7 @@ upload-keystore.*
 /gradle/wrapper/
 build-log.txt
 bundle-log.txt
+
+# ローカルビルドしたリリースAPK(リリースに添付するもので、リポジトリには含めない)
+*.apk
+*.apk.sha256
