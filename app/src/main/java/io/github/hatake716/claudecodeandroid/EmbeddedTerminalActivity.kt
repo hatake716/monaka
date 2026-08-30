@@ -482,13 +482,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         }
         session?.finishIfRunning()
         session = null
-        // 戻ると必ずメイン画面（メニュー）を表示する。どの経路（セットアップ後の
-        // 自動遷移を含む）からターミナルを開いても、既存の MainActivity を再利用して
-        // その上のターミナルを畳む。
+        // 戻ると必ずメイン画面（メニュー）を表示する。どの経路（起動時の自動遷移や
+        // セットアップ後の自動遷移を含む）からターミナルを開いても、既存の MainActivity を
+        // 再利用してその上のターミナルを畳む。EXTRA_SHOW_MENU で、メニュー側の
+        // 起動時自動ターミナル遷移を抑止し、確実にメニューを表示させる。
         runCatching {
             startActivity(
                 Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(MainActivity.EXTRA_SHOW_MENU, true)
                 }
             )
         }

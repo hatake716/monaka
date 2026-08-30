@@ -18,6 +18,9 @@ import android.widget.TextView
 /** Main launcher for CCFA's fully embedded Linux + PTY architecture. */
 class MainActivity : Activity() {
     companion object {
+        /** ターミナルから戻ったとき、メニューを表示させ自動ターミナル遷移を抑止する。 */
+        const val EXTRA_SHOW_MENU = "show_menu"
+
         private const val BASE_DEV_SETUP =
             "apt-get -o Acquire::Retries=3 update && " +
                 "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y ca-certificates curl git ripgrep locales"
@@ -62,6 +65,9 @@ class MainActivity : Activity() {
     private lateinit var setupOperationText: TextView
     private lateinit var setupButton: Button
 
+    // このプロセスで一度ターミナルへ自動遷移したか（起動時ジャンプの一回制御）。
+    private var jumpedToTerminal = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = page
@@ -69,7 +75,28 @@ class MainActivity : Activity() {
         setContentView(buildView().also { it.applyEdgeToEdgeInsets() })
         EmbeddedRuntimeManager.ensureHostRuntime(this)
         refreshStorageStatus()
+        // セットアップ完了以降（アクティブなコンテナがある）は、アプリ起動時に
+        // 直接エージェントターミナルを開く。ターミナルから「戻る」で来たときは
+        // EXTRA_SHOW_MENU が付くので飛ばさず、このメニューを表示する。
+        maybeJumpToTerminal(intent)
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // singleTop なので、戻る/再タップでの再表示はここに来る。Intent を最新化する。
+        setIntent(intent)
+        // アプリアイコンの再タップ（LAUNCHER intent）は毎回ターミナル直行にしたいので、
+        // ジャンプ済みフラグを解除して再度飛べるようにする。ターミナルからの「戻る」は
+        // EXTRA_SHOW_MENU 付きの内部 intent なので対象外（メニューを表示）。
+        if (isLauncherIntent(intent)) {
+            jumpedToTerminal = false
+            maybeJumpToTerminal(intent)
+        }
+    }
+
+    private fun isLauncherIntent(intent: Intent): Boolean =
+        Intent.ACTION_MAIN == intent.action &&
+            intent.hasCategory(Intent.CATEGORY_LAUNCHER)
 
     override fun onResume() {
         super.onResume()
@@ -282,6 +309,22 @@ class MainActivity : Activity() {
             setupProgress.isIndeterminate = false
             setupProgress.progress = value.percent.coerceIn(0, 100)
         }
+    }
+
+    /**
+     * アプリ起動時、セットアップ完了済み（アクティブコンテナあり）なら直接
+     * エージェントターミナルを開く。ターミナルから戻ってきたとき
+     * （EXTRA_SHOW_MENU 付き）は飛ばさず、このメニューを表示する。
+     * 無限ループ防止のため、飛ばしたら jumpedToTerminal で一度きりにする。
+     */
+    private fun maybeJumpToTerminal(fromIntent: Intent) {
+        if (fromIntent.getBooleanExtra(EXTRA_SHOW_MENU, false)) return
+        if (jumpedToTerminal) return
+        val active = EmbeddedRuntimeManager.activeContainer(this) ?: return
+        jumpedToTerminal = true
+        startActivity(
+            EmbeddedTerminalActivity.intent(this, active, EmbeddedRuntimeManager.LaunchMode.SHELL)
+        )
     }
 
     private fun launch(mode: EmbeddedRuntimeManager.LaunchMode) {
