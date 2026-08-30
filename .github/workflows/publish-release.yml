@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   release:
-    if: github.repository == 'hatake716/-CCFA'
+    if: github.repository == 'hatake716/monaka'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

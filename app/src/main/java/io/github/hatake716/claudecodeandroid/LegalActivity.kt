@@ -181,6 +181,6 @@ class LegalActivity : Activity() {
 
     private companion object {
         // monaka は sideload 専用のため、GitHub Pages ではなくリポジトリ内 PRIVACY.md を指す。
-        const val PRIVACY_POLICY_URL = "https://github.com/hatake716/-CCFA/blob/main/PRIVACY.md"
+        const val PRIVACY_POLICY_URL = "https://github.com/hatake716/monaka/blob/monaka/PRIVACY.md"
     }
 }

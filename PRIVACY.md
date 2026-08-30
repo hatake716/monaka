@@ -54,7 +54,7 @@ monaka does not collect personal data from any user, including children.
 ## Changes and contact
 
 - Developer: hatake716 (individual developer)
-- Contact: https://github.com/hatake716/-CCFA/issues
+- Contact: https://github.com/hatake716/monaka/issues
 
 ## Distribution note
 
