@@ -271,6 +271,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         if (!::imeInput.isInitialized) return
         imeInput.hint = when (launchMode) {
             EmbeddedRuntimeManager.LaunchMode.SHELL -> "メッセージ / コマンドを入力…"
+            EmbeddedRuntimeManager.LaunchMode.SETUP -> "メッセージ / コマンドを入力…"
             EmbeddedRuntimeManager.LaunchMode.COMMAND -> "セットアップターミナルへ入力…"
         }
     }
@@ -396,6 +397,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
         val displayTitle = when (launchMode) {
             EmbeddedRuntimeManager.LaunchMode.SHELL -> "$container — monaka Terminal"
+            EmbeddedRuntimeManager.LaunchMode.SETUP -> "$container — monaka Terminal"
             EmbeddedRuntimeManager.LaunchMode.COMMAND -> "$container — monaka Task"
         }
         titleView.text = displayTitle
@@ -480,6 +482,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         }
         session?.finishIfRunning()
         session = null
+        // 戻ると必ずメイン画面（メニュー）を表示する。どの経路（セットアップ後の
+        // 自動遷移を含む）からターミナルを開いても、既存の MainActivity を再利用して
+        // その上のターミナルを畳む。
+        runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+            )
+        }
         finish()
     }
 

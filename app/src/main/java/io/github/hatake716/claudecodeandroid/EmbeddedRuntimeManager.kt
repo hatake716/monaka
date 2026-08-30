@@ -41,7 +41,20 @@ object EmbeddedRuntimeManager {
         val percent: Int? = null
     )
 
-    enum class LaunchMode { SHELL, COMMAND }
+    enum class LaunchMode {
+        /** 通常のログインシェル。 */
+        SHELL,
+
+        /** コマンドを実行し、完了後 Enter を押すとシェルへ戻る（結果を読ませたい用途）。 */
+        COMMAND,
+
+        /**
+         * コマンドを実行し、完了後 Enter 待ちせずそのままシェルへ入る。
+         * 初回セットアップ完了時に、基本CLIを流したうえでエージェントターミナルを
+         * すぐ使える状態にするための専用モード。
+         */
+        SETUP
+    }
 
     fun runtimeDir(context: Context) = File(context.filesDir, "embedded-runtime")
     fun cacheDir(context: Context) = File(runtimeDir(context), "cache")
@@ -298,6 +311,11 @@ object EmbeddedRuntimeManager {
                 require(!command.isNullOrBlank()) { "コマンドが空です。" }
                 "$command; rc=${d}?; printf '\\n\\n[exit: %s] Enterでシェルへ戻ります...' \"${d}rc\"; read _; exec /bin/bash -l"
             }
+            LaunchMode.SETUP -> {
+                require(!command.isNullOrBlank()) { "コマンドが空です。" }
+                // Enter 待ちせず、完了後そのままログインシェルへ入る。
+                "$command; rc=${d}?; printf '\\n\\n[準備完了] エージェントターミナルを開始します...\\n\\n'; exec /bin/bash -l"
+            }
         }
 
         val args = baseProotArgs(context, rootfs).toMutableList()
@@ -325,6 +343,7 @@ object EmbeddedRuntimeManager {
             title = when (mode) {
                 LaunchMode.SHELL -> "$container — Linux"
                 LaunchMode.COMMAND -> "$container — Task"
+                LaunchMode.SETUP -> "$container — Linux"
             }
         )
     }

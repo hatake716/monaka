@@ -251,12 +251,14 @@ class MainActivity : Activity() {
                 result.onSuccess {
                     setupProgress.isIndeterminate = false
                     setupProgress.progress = 100
-                    setupOperationText.text = "Linux rootfsとPRootセルフテストが完了しました。基本CLIをセットアップします。"
+                    setupOperationText.text = "Linux環境の準備が完了しました。エージェントターミナルを開きます。"
+                    // 基本CLIを流したうえで、Enter 待ちせずそのままエージェントターミナル
+                    // （ログインシェル）に入る。戻るボタンでこのメイン画面に戻る。
                     startActivity(
                         EmbeddedTerminalActivity.intent(
                             this,
                             EmbeddedRuntimeManager.DEFAULT_CONTAINER,
-                            EmbeddedRuntimeManager.LaunchMode.COMMAND,
+                            EmbeddedRuntimeManager.LaunchMode.SETUP,
                             BASE_DEV_SETUP
                         )
                     )
