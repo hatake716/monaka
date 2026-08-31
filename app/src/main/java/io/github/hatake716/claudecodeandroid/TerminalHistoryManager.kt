@@ -28,9 +28,14 @@ object TerminalHistoryManager {
         val container: String,
         val title: String,
         val updatedAt: Long,
-        val preview: String
+        val preview: String,
+        /** ユーザーが付けた名前。空なら自動タイトル([title])を表示に使う。 */
+        val name: String = ""
     ) {
         fun logFileName(): String = "$id.log"
+
+        /** 一覧などに表示する名前。ユーザー名があればそれを、なければ自動タイトル。 */
+        fun displayName(): String = if (name.isNotBlank()) name else title
     }
 
     private fun dir(context: Context): File =
@@ -53,12 +58,15 @@ object TerminalHistoryManager {
             .onFailure { return null }
 
         val now = System.currentTimeMillis()
+        // 同じ id を再保存する場合、ユーザーが付けた名前は引き継ぐ。
+        val existingName = load(context).firstOrNull { it.id == id }?.name ?: ""
         val record = Record(
             id = id,
             container = container,
             title = buildTitle(container, now),
             updatedAt = now,
-            preview = buildPreview(trimmed)
+            preview = buildPreview(trimmed),
+            name = existingName
         )
 
         val records = load(context).filterNot { it.id == id }.toMutableList()
@@ -86,7 +94,8 @@ object TerminalHistoryManager {
                             container = o.optString("container", "?"),
                             title = o.optString("title", "セッション"),
                             updatedAt = o.optLong("updatedAt", 0L),
-                            preview = o.optString("preview", "")
+                            preview = o.optString("preview", ""),
+                            name = o.optString("name", "")
                         )
                     )
                 }
@@ -102,6 +111,15 @@ object TerminalHistoryManager {
     fun delete(context: Context, id: String) {
         runCatching { logFile(context, id).delete() }
         writeIndex(context, load(context).filterNot { it.id == id })
+    }
+
+    /** 記録に名前を付ける/変更する。空文字を渡すと名前を消して自動タイトルに戻す。 */
+    fun rename(context: Context, id: String, newName: String) {
+        val trimmed = newName.trim()
+        val records = load(context).map {
+            if (it.id == id) it.copy(name = trimmed) else it
+        }
+        writeIndex(context, records)
     }
 
     /** 全記録を削除する。 */
@@ -122,6 +140,7 @@ object TerminalHistoryManager {
                     put("title", r.title)
                     put("updatedAt", r.updatedAt)
                     put("preview", r.preview)
+                    put("name", r.name)
                 }
             )
         }

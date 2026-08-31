@@ -105,11 +105,20 @@ class HistoryActivity : Activity() {
                 background = rounded(card, border, 14)
             }
             box.addView(TextView(this).apply {
-                text = r.title
+                text = r.displayName()
                 textSize = 15f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(this@HistoryActivity.text)
             })
+            // 自動タイトル(コンテナ名・日時)。ユーザー名がある時だけ補助表示する。
+            if (r.name.isNotBlank()) {
+                box.addView(TextView(this).apply {
+                    text = r.title
+                    textSize = 11.5f
+                    setTextColor(muted)
+                    setPadding(0, dp(2), 0, 0)
+                })
+            }
             if (r.preview.isNotBlank()) {
                 box.addView(TextView(this).apply {
                     text = r.preview
@@ -126,7 +135,10 @@ class HistoryActivity : Activity() {
             row.addView(primary("再開") { resume(r) },
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     .apply { marginEnd = dp(6) })
-            row.addView(button("ログを見る") { showLog(r) },
+            row.addView(button("名前") { renameDialog(r) },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { marginEnd = dp(6) })
+            row.addView(button("ログ") { showLog(r) },
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     .apply { marginEnd = dp(6) })
             row.addView(dangerButton("削除") { confirmDelete(r) },
@@ -134,6 +146,30 @@ class HistoryActivity : Activity() {
             box.addView(row)
             listHost.addView(box, if (index == 0) top(dp(4)) else top(dp(10)))
         }
+    }
+
+    /** 記録に名前を付ける/変更するダイアログ。 */
+    private fun renameDialog(r: TerminalHistoryManager.Record) {
+        val input = android.widget.EditText(this).apply {
+            setText(r.name)
+            hint = "名前(空にすると日時に戻ります)"
+            setSingleLine(true)
+            setSelection(text.length)
+        }
+        val pad = dp(20)
+        val container = LinearLayout(this).apply {
+            setPadding(pad, dp(8), pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("履歴の名前")
+            .setView(container)
+            .setPositiveButton("保存") { _, _ ->
+                TerminalHistoryManager.rename(this, r.id, input.text.toString())
+                render()
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
     }
 
     private fun resume(r: TerminalHistoryManager.Record) {
@@ -158,7 +194,7 @@ class HistoryActivity : Activity() {
         }
         scroll.addView(tv)
         AlertDialog.Builder(this)
-            .setTitle(r.title)
+            .setTitle(r.displayName())
             .setView(scroll)
             .setPositiveButton("閉じる", null)
             .setNeutralButton("このログで再開") { _, _ -> resume(r) }

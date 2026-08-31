@@ -356,7 +356,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 isClickable = true
             }
             item.addView(TextView(this).apply {
-                text = r.title
+                text = r.displayName()
                 textSize = 13.5f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(textColor)
