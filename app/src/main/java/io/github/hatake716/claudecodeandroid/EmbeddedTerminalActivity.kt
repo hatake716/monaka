@@ -24,8 +24,10 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.drawerlayout.widget.DrawerLayout
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.terminal.TextStyle
@@ -91,6 +93,13 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     private var historyContainer: String = ""
     @Volatile private var latestTranscript: String = ""
 
+    // ライトカラースキームを適用済みか（emulator 初期化後に一度だけ適用する）。
+    private var terminalColorsApplied = false
+
+    // 履歴サイドペイン(左ドロワー)。
+    private var drawerLayout: DrawerLayout? = null
+    private var historyListHost: LinearLayout? = null
+
     // monaka配色（Claude ライトモード風。温かいオフホワイト地 × クレイ/小豆アクセント）
     private val pageColor = Color.rgb(245, 244, 239)
     private val cardColor = Color.rgb(255, 255, 255)
@@ -107,7 +116,9 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         window.navigationBarColor = pageColor
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         fontSizePx = loadFontSizePx()
-        setContentView(buildView().also { it.applyEdgeToEdgeInsets(includeIme = true) })
+        // edge-to-edge のインセットはメインコンテンツ(root)側で処理する(buildView 内)。
+        // DrawerLayout 自体に padding を付けるとドロワーがずれるため。
+        setContentView(buildView())
         startRequestedSession()
     }
 
@@ -136,6 +147,23 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         }
         header.addView(
             backButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        // 履歴サイドペイン(左ドロワー)を開くボタン。左端スワイプでも開ける。
+        val historyButton = Button(this).apply {
+            text = "☰ 履歴"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(textColor)
+            minWidth = dp(64)
+            setOnClickListener { openHistoryDrawer() }
+        }
+        header.addView(
+            historyButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -198,7 +226,126 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
         root.addView(buildExtraKeys())
         root.addView(buildMessageComposer())
-        return root
+
+        // 履歴サイドペインを持つ DrawerLayout でメインコンテンツをラップする。
+        // 左端からのスワイプ、またはヘッダーの「☰ 履歴」で開く。
+        // インセット(ステータスバー/ナビバー/IME)はメインコンテンツ側で処理する。
+        root.applyEdgeToEdgeInsets(includeIme = true)
+
+        val drawer = DrawerLayout(this).apply {
+            addView(
+                root,
+                DrawerLayout.LayoutParams(
+                    DrawerLayout.LayoutParams.MATCH_PARENT,
+                    DrawerLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+            addView(buildHistoryDrawer())
+        }
+        drawerLayout = drawer
+        return drawer
+    }
+
+    /** 左ドロワー(履歴サイドペイン)を構築する。 */
+    private fun buildHistoryDrawer(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(pageColor)
+            setPadding(dp(16), dp(20), dp(16), dp(16))
+        }
+        panel.addView(TextView(this).apply {
+            text = "ターミナル履歴"
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(textColor)
+        })
+        panel.addView(TextView(this).apply {
+            text = "選ぶとログを表示して、このコンテナで再開します。"
+            textSize = 12f
+            setTextColor(mutedColor)
+            setPadding(0, dp(4), 0, dp(12))
+        })
+
+        historyListHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(historyListHost)
+        }
+        panel.addView(
+            scroll,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+
+        val params = DrawerLayout.LayoutParams(dp(300), DrawerLayout.LayoutParams.MATCH_PARENT).apply {
+            gravity = Gravity.START
+        }
+        panel.layoutParams = params
+        return panel
+    }
+
+    private fun openHistoryDrawer() {
+        renderHistoryList()
+        runCatching { drawerLayout?.openDrawer(Gravity.START) }
+    }
+
+    /** ドロワー内に履歴一覧を新しい順で描画する。 */
+    private fun renderHistoryList() {
+        val host = historyListHost ?: return
+        host.removeAllViews()
+        val records = TerminalHistoryManager.load(this)
+        if (records.isEmpty()) {
+            host.addView(TextView(this).apply {
+                text = "まだ履歴はありません。"
+                textSize = 13f
+                setTextColor(mutedColor)
+                setPadding(dp(4), dp(10), dp(4), dp(10))
+            })
+            return
+        }
+        records.forEachIndexed { index, r ->
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = rounded(cardColor, borderColor, 12)
+                setOnClickListener { onHistoryPicked(r) }
+                isClickable = true
+            }
+            item.addView(TextView(this).apply {
+                text = r.title
+                textSize = 13.5f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(textColor)
+            })
+            if (r.preview.isNotBlank()) {
+                item.addView(TextView(this).apply {
+                    text = r.preview
+                    textSize = 11.5f
+                    setTextColor(mutedColor)
+                    maxLines = 2
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
+            host.addView(
+                item,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = if (index == 0) 0 else dp(8) }
+            )
+        }
+    }
+
+    /** ドロワーで履歴を選んだとき。ログを表示し、そのコンテナで再開する。 */
+    private fun onHistoryPicked(r: TerminalHistoryManager.Record) {
+        runCatching { drawerLayout?.closeDrawer(Gravity.START) }
+        if (r.container !in EmbeddedRuntimeManager.listContainers(this)) {
+            Toast.makeText(this, "コンテナ「${r.container}」は存在しません", Toast.LENGTH_LONG).show()
+            return
+        }
+        // 現在のセッションを保存してから、選んだ履歴で新しいターミナルを開き直す。
+        saveHistory()
+        startActivity(EmbeddedTerminalActivity.resumeIntent(this, r.container, r.id))
+        finish()
     }
 
     private fun fontButton(label: String, action: () -> Unit) = Button(this).apply {
@@ -500,15 +647,28 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
 
     /** ターミナルにライトモードのカラースキーム（背景/前景/カーソル）を適用する。 */
-    private fun applyLightTerminalColors(session: TerminalSession) {
+    /**
+     * ターミナルにライトモードのカラースキームを適用する。
+     *
+     * emulator は attachSession 直後はまだ null で、PTY 起動後(最初の出力時)に
+     * 初期化される。かつ初期化時に TerminalColors.reset() が走りデフォルト(黒背景)へ
+     * 戻るため、初期化前に書いても無効になる。そこで onTextChanged / onEmulatorSet の
+     * たびに呼び、emulator が現れたら一度だけ適用する（terminalColorsApplied で制御）。
+     */
+    private fun applyLightTerminalColors(session: TerminalSession?) {
+        if (terminalColorsApplied) return
+        val colors = session?.emulator?.mColors?.mCurrentColors ?: return
         runCatching {
-            val colors = session.emulator?.mColors?.mCurrentColors ?: return
             colors[TextStyle.COLOR_INDEX_BACKGROUND] = 0xFFFBFAF7.toInt() // 端末背景(ほぼ白の暖色)
             colors[TextStyle.COLOR_INDEX_FOREGROUND] = 0xFF2D2A26.toInt() // 端末文字(濃いグレー)
             colors[TextStyle.COLOR_INDEX_CURSOR] = 0xFFC15F3C.toInt()     // カーソル(クレイ)
-            // 明るい背景で読みにくくなりがちな標準色を少し暗く寄せる。
-            colors[7] = 0xFF5C5955.toInt()   // 通常の白 → 濃いグレー
-            colors[15] = 0xFF2D2A26.toInt()  // 明るい白 → ほぼ本文色
+            // 明るい背景で読みにくい標準色(明色系)を暗く寄せて可読性を確保する。
+            colors[7] = 0xFF5C5955.toInt()    // 通常の白 → 濃いグレー
+            colors[15] = 0xFF2D2A26.toInt()   // 明るい白 → ほぼ本文色
+            colors[10] = 0xFF3F7A3F.toInt()   // 明るい緑 → 濃い緑(プロンプト等)
+            colors[11] = 0xFF8A6D00.toInt()   // 明るい黄 → 濃い山吹
+            colors[14] = 0xFF2A6E8F.toInt()   // 明るいシアン → 濃い青
+            terminalColorsApplied = true
             terminalView.invalidate()
         }
     }
@@ -566,6 +726,12 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
     @Deprecated("Deprecated in Android API; retained for targetSdk 28 compatibility")
     override fun onBackPressed() {
+        // 履歴サイドペインが開いていれば、まず閉じる。
+        val drawer = drawerLayout
+        if (drawer != null && drawer.isDrawerOpen(Gravity.START)) {
+            drawer.closeDrawer(Gravity.START)
+            return
+        }
         leaveTerminal()
     }
 
@@ -579,6 +745,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
 
     override fun onTextChanged(changedSession: TerminalSession) {
+        // emulator が初期化されたら(最初の出力時)ライト配色を適用する。
+        applyLightTerminalColors(changedSession)
         terminalView.onScreenUpdated()
         // 画面が変わるたびに最新トランスクリプト(スクロールバック込み・プレーンテキスト)を
         // 保持しておく。leaveTerminal / onDestroy で履歴として保存する。
@@ -636,7 +804,10 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         ctrlDown: Boolean,
         session: TerminalSession
     ): Boolean = false
-    override fun onEmulatorSet() = Unit
+    override fun onEmulatorSet() {
+        // emulator が用意されたタイミングでもライト配色を適用する。
+        applyLightTerminalColors(session)
+    }
 
     override fun logError(tag: String, message: String) { Log.e(tag, message) }
     override fun logWarn(tag: String, message: String) { Log.w(tag, message) }

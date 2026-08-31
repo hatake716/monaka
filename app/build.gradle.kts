@@ -210,6 +210,8 @@ dependencies {
     }
     implementation(files("libs/terminal-emulator-0.118.0-16k.aar"))
     implementation("org.apache.commons:commons-compress:1.27.1")
-    // 裏CCFA は SAF コピー同期を廃止し全ファイルアクセス + 直接 bind mount にしたため、
+    // ターミナルの履歴サイドペイン(左端スワイプで開くドロワー)に使用。
+    implementation("androidx.drawerlayout:drawerlayout:1.2.0")
+    // monaka は SAF コピー同期を廃止し全ファイルアクセス + 直接 bind mount にしたため、
     // DocumentFile（androidx.documentfile）依存は不要になった。
 }
