@@ -173,14 +173,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         )
 
         // コンテナ名表示は廃止。右側のフォントサイズ/A-/A+ を右端へ寄せるための
-        // 伸縮スペーサー(weight=1・幅0)。titleView/statusView は他所からの代入が
-        // あるため生成だけ残す(ヘッダーには表示しない)。
+        // 伸縮スペーサー(weight=1・幅0)。高さは 0 に固定する。
+        // (素の View に WRAP_CONTENT を与えると縦に全高まで広がり、ヘッダーが
+        //  画面全体を占有してターミナルが隠れる不具合が出るため。)
+        // titleView/statusView は他所からの代入があるため生成だけ残す(非表示)。
         titleView = TextView(this)
         statusView = TextView(this)
         val spacer = View(this)
         header.addView(
             spacer,
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(0, 0, 1f)
         )
 
         fontSizeView = TextView(this).apply {
