@@ -155,31 +155,31 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             )
         )
 
-
-        val headerText = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(6), 0, dp(4), 0)
-        }
-        titleView = TextView(this).apply {
-            text = "monaka Terminal"
-            textSize = 15f
-            setTypeface(typeface, Typeface.BOLD)
+        // 戻るの右に「履歴」ボタン。左端スワイプが出しづらいための固定導線。
+        val historyButton = Button(this).apply {
+            text = "履歴"
+            isAllCaps = false
+            textSize = 13f
             setTextColor(textColor)
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            minWidth = dp(56)
+            setOnClickListener { openHistoryDrawer() }
         }
-        statusView = TextView(this).apply {
-            text = "Starting…"
-            textSize = 11.5f
-            setTextColor(mutedColor)
-            setPadding(0, dp(1), 0, 0)
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        headerText.addView(titleView)
-        headerText.addView(statusView)
         header.addView(
-            headerText,
+            historyButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        // コンテナ名表示は廃止。右側のフォントサイズ/A-/A+ を右端へ寄せるための
+        // 伸縮スペーサー(weight=1・幅0)。titleView/statusView は他所からの代入が
+        // あるため生成だけ残す(ヘッダーには表示しない)。
+        titleView = TextView(this)
+        statusView = TextView(this)
+        val spacer = View(this)
+        header.addView(
+            spacer,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
 
