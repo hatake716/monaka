@@ -28,15 +28,15 @@ import android.widget.Toast
  */
 class StorageSettingsActivity : Activity() {
     // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
-    private val page = Color.rgb(26, 20, 18)
-    private val card = Color.rgb(38, 28, 25)
-    private val text = Color.rgb(237, 224, 214)
-    private val muted = Color.rgb(176, 150, 138)
-    private val border = Color.rgb(74, 52, 45)
-    private val soft = Color.rgb(48, 35, 31)
-    private val accent = Color.rgb(156, 74, 60)
-    private val accentDark = Color.rgb(122, 59, 46)
-    private val danger = Color.rgb(210, 140, 90)
+    private val page = Color.rgb(245, 244, 239)
+    private val card = Color.rgb(255, 255, 255)
+    private val text = Color.rgb(38, 36, 32)
+    private val muted = Color.rgb(122, 115, 104)
+    private val border = Color.rgb(228, 224, 214)
+    private val soft = Color.rgb(238, 236, 229)
+    private val accent = Color.rgb(193, 95, 60)
+    private val accentDark = Color.rgb(167, 78, 48)
+    private val danger = Color.rgb(180, 72, 54)
 
     private lateinit var statusView: TextView
     private lateinit var toggleButton: Button

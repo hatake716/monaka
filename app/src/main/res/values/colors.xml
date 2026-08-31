@@ -2,6 +2,6 @@
 <resources>
     <!-- monaka: アイコン背景は白。前景は抽象的でかわいい最中(パステル)。 -->
     <color name="ic_launcher_background">#FFFFFF</color>
-    <!-- アプリ画面のウィンドウ背景はUIに合わせた焦げ茶ダーク（起動時のちらつき防止）。 -->
-    <color name="window_background">#1A1412</color>
+    <!-- アプリ画面のウィンドウ背景はライトモードの温かいオフホワイト(paper)。 -->
+    <color name="window_background">#F5F4EF</color>
 </resources>

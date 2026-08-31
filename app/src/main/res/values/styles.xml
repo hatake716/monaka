@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- monaka: ダーク地(焦げ茶)× 小豆色。Dark テーマ + 明るいステータスバーアイコン -->
-    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:windowLightStatusBar">false</item>
+    <!-- monaka: Claude ライトモード風。温かいオフホワイト地 + 暗いステータスバーアイコン -->
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:fontFamily">sans</item>
     </style>

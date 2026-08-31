@@ -1,6 +1,7 @@
 package io.github.hatake716.claudecodeandroid
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -27,6 +28,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
+import com.termux.terminal.TextStyle
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 import java.nio.charset.StandardCharsets
@@ -39,6 +41,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         const val EXTRA_CONTAINER = "container"
         const val EXTRA_MODE = "mode"
         const val EXTRA_COMMAND = "command"
+        const val EXTRA_RESUME_ID = "resume_id"
 
         private const val PREFS = "terminal-ui"
         private const val PREF_FONT_SIZE_PX = "font-size-px"
@@ -56,6 +59,17 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             putExtra(EXTRA_MODE, mode.name)
             if (command != null) putExtra(EXTRA_COMMAND, command)
         }
+
+        /**
+         * 過去の記録を再開する intent。保存済みログを画面上部に表示し、
+         * 同じコンテナで新しいシェル(SHELL)を開いて作業を続ける。
+         */
+        fun resumeIntent(context: Context, container: String, resumeId: String) =
+            Intent(context, EmbeddedTerminalActivity::class.java).apply {
+                putExtra(EXTRA_CONTAINER, container)
+                putExtra(EXTRA_MODE, EmbeddedRuntimeManager.LaunchMode.SHELL.name)
+                putExtra(EXTRA_RESUME_ID, resumeId)
+            }
     }
 
     private lateinit var terminalView: TerminalView
@@ -72,15 +86,20 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     private var shiftPressed = false
     private var fontSizePx = 0
 
-    // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
-    private val pageColor = Color.rgb(26, 20, 18)
-    private val cardColor = Color.rgb(38, 28, 25)
-    private val borderColor = Color.rgb(74, 52, 45)
-    private val textColor = Color.rgb(237, 224, 214)
-    private val mutedColor = Color.rgb(176, 150, 138)
-    private val terminalColor = Color.rgb(20, 15, 13)
-    private val terminalText = Color.rgb(237, 224, 214)
-    private val accent = Color.rgb(156, 74, 60)
+    // 履歴記録用: このセッションの記録ID・コンテナ名・最新トランスクリプト。
+    private var historyId: String = ""
+    private var historyContainer: String = ""
+    @Volatile private var latestTranscript: String = ""
+
+    // monaka配色（Claude ライトモード風。温かいオフホワイト地 × クレイ/小豆アクセント）
+    private val pageColor = Color.rgb(245, 244, 239)
+    private val cardColor = Color.rgb(255, 255, 255)
+    private val borderColor = Color.rgb(228, 224, 214)
+    private val textColor = Color.rgb(38, 36, 32)
+    private val mutedColor = Color.rgb(122, 115, 104)
+    private val terminalColor = Color.rgb(251, 250, 247)
+    private val terminalText = Color.rgb(38, 36, 32)
+    private val accent = Color.rgb(193, 95, 60)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -214,7 +233,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             hint = "メッセージ / コマンドを入力…"
             textSize = 16f
             setTextColor(textColor)
-            setHintTextColor(Color.rgb(138, 116, 106))
+            setHintTextColor(Color.rgb(150, 143, 132))
             background = null
             gravity = Gravity.TOP or Gravity.START
             minLines = 1
@@ -294,7 +313,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(4), dp(4), dp(4), dp(6))
-            setBackgroundColor(Color.rgb(30, 22, 19))
+            setBackgroundColor(Color.rgb(239, 237, 230))
         }
 
         outer.addView(keyRow(listOf(
@@ -337,7 +356,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 isAllCaps = false
                 textSize = 12f
                 setTextColor(terminalText)
-                setBackgroundColor(Color.rgb(58, 42, 36))
+                setBackgroundColor(Color.rgb(255, 255, 255))
                 minWidth = dp(66)
                 minHeight = dp(42)
                 setPadding(dp(8), 0, dp(8), 0)
@@ -366,7 +385,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             ModifierKey.ALT -> (!altPressed).also { altPressed = it }
             ModifierKey.SHIFT -> (!shiftPressed).also { shiftPressed = it }
         }
-        button.setBackgroundColor(if (enabled) accent else Color.rgb(58, 42, 36))
+        button.setBackgroundColor(if (enabled) accent else Color.rgb(255, 255, 255))
         terminalView.requestFocus()
     }
 
@@ -403,6 +422,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         titleView.text = displayTitle
         statusView.text = "アプリ内PTY · $container"
 
+        // 履歴記録の準備。このセッション用の新しい記録IDを採番する。
+        historyContainer = container
+        historyId = TerminalHistoryManager.newId(System.currentTimeMillis())
+
+        // 再開の場合、過去ログを画面上部の折りたたみビューに表示する。
+        val resumeId = intent.getStringExtra(EXTRA_RESUME_ID)
+        if (!resumeId.isNullOrBlank()) {
+            showResumeLog(resumeId)
+        }
+
         val newSession = TerminalSession(
             spec.executable,
             spec.cwd,
@@ -414,6 +443,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         newSession.mSessionName = displayTitle
         session = newSession
         terminalView.attachSession(newSession)
+        // ライトモードのカラースキームを適用（emulator 初期化後に色を書き換える）。
+        applyLightTerminalColors(newSession)
 
         imeInput.requestFocus()
         imeInput.postDelayed({ showComposerKeyboard() }, 300)
@@ -468,9 +499,45 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         fontSizeView.text = "%.0f".format(dpSize)
     }
 
+    /** ターミナルにライトモードのカラースキーム（背景/前景/カーソル）を適用する。 */
+    private fun applyLightTerminalColors(session: TerminalSession) {
+        runCatching {
+            val colors = session.emulator?.mColors?.mCurrentColors ?: return
+            colors[TextStyle.COLOR_INDEX_BACKGROUND] = 0xFFFBFAF7.toInt() // 端末背景(ほぼ白の暖色)
+            colors[TextStyle.COLOR_INDEX_FOREGROUND] = 0xFF2D2A26.toInt() // 端末文字(濃いグレー)
+            colors[TextStyle.COLOR_INDEX_CURSOR] = 0xFFC15F3C.toInt()     // カーソル(クレイ)
+            // 明るい背景で読みにくくなりがちな標準色を少し暗く寄せる。
+            colors[7] = 0xFF5C5955.toInt()   // 通常の白 → 濃いグレー
+            colors[15] = 0xFF2D2A26.toInt()  // 明るい白 → ほぼ本文色
+            terminalView.invalidate()
+        }
+    }
+
+    /** 再開時、過去ログを画面上部の折りたたみ帯に表示する。 */
+    private fun showResumeLog(resumeId: String) {
+        val log = TerminalHistoryManager.readTranscript(this, resumeId) ?: return
+        runCatching {
+            AlertDialog.Builder(this)
+                .setTitle("前回のログ")
+                .setMessage(log.takeLast(6000))
+                .setPositiveButton("閉じて続ける", null)
+                .show()
+        }
+    }
+
+    /** このセッションのやりとりを履歴として保存する。 */
+    private fun saveHistory() {
+        val transcript = latestTranscript
+        if (historyId.isBlank() || historyContainer.isBlank()) return
+        runCatching {
+            TerminalHistoryManager.save(applicationContext, historyId, historyContainer, transcript)
+        }
+    }
+
     private fun leaveTerminal() {
         if (leaving) return
         leaving = true
+        saveHistory()
         runCatching {
             val token = if (::imeInput.isInitialized && imeInput.hasFocus()) {
                 imeInput.windowToken
@@ -503,12 +570,21 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
 
     override fun onDestroy() {
-        if (isFinishing) session?.finishIfRunning()
+        if (isFinishing) {
+            // 戻るボタン以外(タスク終了・回転以外の破棄)でも履歴を保存しておく。
+            if (!leaving) saveHistory()
+            session?.finishIfRunning()
+        }
         super.onDestroy()
     }
 
     override fun onTextChanged(changedSession: TerminalSession) {
         terminalView.onScreenUpdated()
+        // 画面が変わるたびに最新トランスクリプト(スクロールバック込み・プレーンテキスト)を
+        // 保持しておく。leaveTerminal / onDestroy で履歴として保存する。
+        runCatching {
+            changedSession.emulator?.screen?.transcriptText?.let { latestTranscript = it }
+        }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) = Unit

@@ -27,14 +27,14 @@ class ContainerManagerActivity : Activity() {
     }
 
     // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
-    private val page = Color.rgb(26, 20, 18)
-    private val card = Color.rgb(38, 28, 25)
-    private val text = Color.rgb(237, 224, 214)
-    private val muted = Color.rgb(176, 150, 138)
-    private val border = Color.rgb(74, 52, 45)
-    private val soft = Color.rgb(48, 35, 31)
-    private val accent = Color.rgb(156, 74, 60)
-    private val danger = Color.rgb(210, 140, 90)
+    private val page = Color.rgb(245, 244, 239)
+    private val card = Color.rgb(255, 255, 255)
+    private val text = Color.rgb(38, 36, 32)
+    private val muted = Color.rgb(122, 115, 104)
+    private val border = Color.rgb(228, 224, 214)
+    private val soft = Color.rgb(238, 236, 229)
+    private val accent = Color.rgb(193, 95, 60)
+    private val danger = Color.rgb(180, 72, 54)
 
     private lateinit var activeText: TextView
     private lateinit var listHost: LinearLayout
@@ -143,7 +143,7 @@ class ContainerManagerActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(11), dp(12), dp(11))
                 background = rounded(
-                    if (selected) Color.rgb(58, 34, 28) else soft,
+                    if (selected) Color.rgb(245, 232, 224) else soft,
                     if (selected) accent else border,
                     12
                 )
@@ -351,7 +351,7 @@ class ContainerManagerActivity : Activity() {
     private fun primary(value: String, click: () -> Unit) = styled(value, accent, Color.WHITE, click)
     private fun button(value: String, click: () -> Unit) = styled(value, soft, text, click)
     private fun dangerButton(value: String, click: () -> Unit) =
-        styled(value, Color.rgb(56, 32, 24), danger, click)
+        styled(value, Color.rgb(247, 231, 227), danger, click)
 
     private fun styled(value: String, bg: Int, fg: Int, click: () -> Unit) = Button(this).apply {
         text = value

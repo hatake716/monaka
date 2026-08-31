@@ -50,16 +50,16 @@ class MainActivity : Activity() {
 
     // monaka配色: 和菓子・最中(もなか)。焦げ茶のダーク地に小豆色(あずき)のアクセント。
     // page=焦げ茶 #1A1412 / accent=小豆 #9C4A3C / text=最中種の皮クリーム #EDE0D6。
-    private val page = Color.rgb(26, 20, 18)
-    private val card = Color.rgb(38, 28, 25)
-    private val text = Color.rgb(237, 224, 214)
-    private val muted = Color.rgb(176, 150, 138)
-    private val border = Color.rgb(74, 52, 45)
-    private val soft = Color.rgb(48, 35, 31)
-    private val accent = Color.rgb(156, 74, 60)
-    private val accentDark = Color.rgb(122, 59, 46)
-    private val danger = Color.rgb(210, 140, 90)
-    private val terminal = Color.rgb(20, 15, 13)
+    private val page = Color.rgb(245, 244, 239)
+    private val card = Color.rgb(255, 255, 255)
+    private val text = Color.rgb(38, 36, 32)
+    private val muted = Color.rgb(122, 115, 104)
+    private val border = Color.rgb(228, 224, 214)
+    private val soft = Color.rgb(238, 236, 229)
+    private val accent = Color.rgb(193, 95, 60)
+    private val accentDark = Color.rgb(167, 78, 48)
+    private val danger = Color.rgb(180, 72, 54)
+    private val terminal = Color.rgb(251, 250, 247)
 
     private lateinit var setupProgress: ProgressBar
     private lateinit var setupOperationText: TextView
@@ -145,15 +145,19 @@ class MainActivity : Activity() {
         section.addView(primary("エージェントターミナルを開く") {
             launch(EmbeddedRuntimeManager.LaunchMode.SHELL)
         }, top(dp(14)))
+        section.addView(button("ターミナル履歴を見る") {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        }, top(dp(8)))
         section.addView(help(
             "アクティブなLinuxコンテナのシェルをアプリ内ターミナルで開きます。" +
-                "claude を導入済みなら、ここで claude を起動して使えます。"
+                "claude を導入済みなら、ここで claude を起動して使えます。" +
+                "過去のやりとりは「ターミナル履歴」から見返して再開できます。"
         ))
         section.addView(TextView(this).apply {
             text = "ESC   CTRL   ALT   TAB   ↑   HOME   END\nPGUP   ←   ↓   →   PGDN   BKSP   ENTER"
             textSize = 12.5f
             gravity = Gravity.CENTER
-            setTextColor(Color.rgb(237, 224, 214))
+            setTextColor(Color.rgb(38, 36, 32))
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = rounded(terminal, terminal, 10)
         }, top(dp(10)))
