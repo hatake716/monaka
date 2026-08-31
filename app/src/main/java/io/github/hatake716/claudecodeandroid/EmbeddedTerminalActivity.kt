@@ -22,12 +22,12 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.drawerlayout.widget.DrawerLayout
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.terminal.TextStyle
@@ -96,8 +96,10 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     // ライトカラースキームを適用済みか（emulator 初期化後に一度だけ適用する）。
     private var terminalColorsApplied = false
 
-    // 履歴サイドペイン(左ドロワー)。
-    private var drawerLayout: DrawerLayout? = null
+    // 履歴サイドペイン(左からスライドするオーバーレイ)。
+    private var overlayRoot: FrameLayout? = null
+    private var historyOverlay: FrameLayout? = null
+    private var historyPanel: LinearLayout? = null
     private var historyListHost: LinearLayout? = null
 
     // monaka配色（Claude ライトモード風。温かいオフホワイト地 × クレイ/小豆アクセント）
@@ -153,22 +155,6 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             )
         )
 
-        // 履歴サイドペイン(左ドロワー)を開くボタン。左端スワイプでも開ける。
-        val historyButton = Button(this).apply {
-            text = "☰ 履歴"
-            isAllCaps = false
-            textSize = 13f
-            setTextColor(textColor)
-            minWidth = dp(64)
-            setOnClickListener { openHistoryDrawer() }
-        }
-        header.addView(
-            historyButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
 
         val headerText = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -179,12 +165,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             textSize = 15f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(textColor)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         statusView = TextView(this).apply {
             text = "Starting…"
             textSize = 11.5f
             setTextColor(mutedColor)
             setPadding(0, dp(1), 0, 0)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         headerText.addView(titleView)
         headerText.addView(statusView)
@@ -226,32 +216,69 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
         root.addView(buildExtraKeys())
         root.addView(buildMessageComposer())
+        applyInsetsPadding(root, includeIme = true)
 
-        // 履歴サイドペインを持つ DrawerLayout でメインコンテンツをラップする。
-        // 左端からのスワイプ、またはヘッダーの「☰ 履歴」で開く。
-        // インセット(ステータスバー/ナビバー/IME)はメインコンテンツ側で処理する。
-        root.applyEdgeToEdgeInsets(includeIme = true)
-
-        val drawer = DrawerLayout(this).apply {
+        // 履歴サイドペインは、メインUIの上に重ねる FrameLayout オーバーレイ方式。
+        // 左端(幅24dp)からの右スワイプで開く。ヘッダーにはボタンを足さない
+        // (ボタンを増やすとタイトルの weight 幅が潰れて崩壊するため)。
+        overlayRoot = FrameLayout(this).apply {
             addView(
                 root,
-                DrawerLayout.LayoutParams(
-                    DrawerLayout.LayoutParams.MATCH_PARENT,
-                    DrawerLayout.LayoutParams.MATCH_PARENT
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
                 )
             )
-            addView(buildHistoryDrawer())
+            addView(
+                buildEdgeSwipeCatcher(),
+                FrameLayout.LayoutParams(dp(24), FrameLayout.LayoutParams.MATCH_PARENT, Gravity.START)
+            )
+            addView(buildHistoryOverlay())
         }
-        drawerLayout = drawer
-        return drawer
+        return overlayRoot!!
     }
 
-    /** 左ドロワー(履歴サイドペイン)を構築する。 */
-    private fun buildHistoryDrawer(): View {
+    /** 左端からの右スワイプを検出して履歴サイドペインを開く透明ビュー。 */
+    private fun buildEdgeSwipeCatcher(): View {
+        val catcher = View(this)
+        var downX = 0f
+        var downY = 0f
+        catcher.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY; true
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    val dx = e.rawX - downX
+                    val dy = e.rawY - downY
+                    // 右方向に十分スワイプ(縦ブレは小さめ)なら開く。
+                    if (dx > dp(40) && kotlin.math.abs(dy) < dp(80)) openHistoryDrawer()
+                    true
+                }
+                else -> true
+            }
+        }
+        return catcher
+    }
+
+    /**
+     * 履歴サイドペインのオーバーレイ(半透明の暗幕 + 左からスライドするパネル)を構築する。
+     * 既定は非表示。openHistoryDrawer / closeHistoryDrawer で表示を切り替える。
+     */
+    private fun buildHistoryOverlay(): View {
+        val overlay = FrameLayout(this).apply {
+            visibility = View.GONE
+            // 暗幕。タップで閉じる。
+            setBackgroundColor(0x66000000)
+            setOnClickListener { closeHistoryDrawer() }
+        }
+
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(pageColor)
-            setPadding(dp(16), dp(20), dp(16), dp(16))
+            setPadding(dp(16), dp(24), dp(16), dp(16))
+            // パネル内タップは暗幕に伝播させない。
+            isClickable = true
         }
         panel.addView(TextView(this).apply {
             text = "ターミナル履歴"
@@ -265,7 +292,6 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             setTextColor(mutedColor)
             setPadding(0, dp(4), 0, dp(12))
         })
-
         historyListHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -275,18 +301,35 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             scroll,
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         )
+        applyInsetsPadding(panel)
 
-        val params = DrawerLayout.LayoutParams(dp(300), DrawerLayout.LayoutParams.MATCH_PARENT).apply {
-            gravity = Gravity.START
-        }
-        panel.layoutParams = params
-        return panel
+        overlay.addView(
+            panel,
+            FrameLayout.LayoutParams(dp(300), FrameLayout.LayoutParams.MATCH_PARENT, Gravity.START)
+        )
+        historyPanel = panel
+        historyOverlay = overlay
+        return overlay
     }
 
     private fun openHistoryDrawer() {
         renderHistoryList()
-        runCatching { drawerLayout?.openDrawer(Gravity.START) }
+        val overlay = historyOverlay ?: return
+        val panel = historyPanel ?: return
+        overlay.visibility = View.VISIBLE
+        // 左からスライドイン。
+        panel.translationX = -dp(300).toFloat()
+        panel.animate().translationX(0f).setDuration(180).start()
     }
+
+    private fun closeHistoryDrawer() {
+        val overlay = historyOverlay ?: return
+        val panel = historyPanel ?: return
+        panel.animate().translationX(-dp(300).toFloat()).setDuration(160)
+            .withEndAction { overlay.visibility = View.GONE }.start()
+    }
+
+    private fun isHistoryDrawerOpen(): Boolean = historyOverlay?.visibility == View.VISIBLE
 
     /** ドロワー内に履歴一覧を新しい順で描画する。 */
     private fun renderHistoryList() {
@@ -335,9 +378,9 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         }
     }
 
-    /** ドロワーで履歴を選んだとき。ログを表示し、そのコンテナで再開する。 */
+    /** サイドペインで履歴を選んだとき。ログを表示し、そのコンテナで再開する。 */
     private fun onHistoryPicked(r: TerminalHistoryManager.Record) {
-        runCatching { drawerLayout?.closeDrawer(Gravity.START) }
+        closeHistoryDrawer()
         if (r.container !in EmbeddedRuntimeManager.listContainers(this)) {
             Toast.makeText(this, "コンテナ「${r.container}」は存在しません", Toast.LENGTH_LONG).show()
             return
@@ -727,9 +770,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     @Deprecated("Deprecated in Android API; retained for targetSdk 28 compatibility")
     override fun onBackPressed() {
         // 履歴サイドペインが開いていれば、まず閉じる。
-        val drawer = drawerLayout
-        if (drawer != null && drawer.isDrawerOpen(Gravity.START)) {
-            drawer.closeDrawer(Gravity.START)
+        if (isHistoryDrawerOpen()) {
+            closeHistoryDrawer()
             return
         }
         leaveTerminal()
@@ -827,4 +869,23 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    /**
+     * システムバー(+任意でIME)のインセットを padding として反映する。
+     * WindowInsets は消費せずそのまま返すため、親のレイアウト測定を壊さない。
+     * EdgeToEdge の CONSUMED 版と違い、ヘッダーの weight レイアウトが潰れない。
+     */
+    private fun applyInsetsPadding(view: View, includeIme: Boolean = false) {
+        if (android.os.Build.VERSION.SDK_INT < 35) return
+        view.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(
+                android.view.WindowInsets.Type.systemBars() or
+                    android.view.WindowInsets.Type.displayCutout()
+            )
+            val ime = if (includeIme) insets.getInsets(android.view.WindowInsets.Type.ime()).bottom else 0
+            v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime))
+            insets
+        }
+        view.requestApplyInsets()
+    }
 }
