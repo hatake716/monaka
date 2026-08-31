@@ -353,7 +353,9 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 background = rounded(cardColor, borderColor, 12)
                 setOnClickListener { onHistoryPicked(r) }
+                setOnLongClickListener { onHistoryLongPressed(r); true }
                 isClickable = true
+                isLongClickable = true
             }
             item.addView(TextView(this).apply {
                 text = r.displayName()
@@ -391,6 +393,56 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         saveHistory()
         startActivity(EmbeddedTerminalActivity.resumeIntent(this, r.container, r.id))
         finish()
+    }
+
+    /** サイドペインで履歴を長押ししたとき。名前変更 / 削除を選べる。 */
+    private fun onHistoryLongPressed(r: TerminalHistoryManager.Record) {
+        AlertDialog.Builder(this)
+            .setTitle(r.displayName())
+            .setItems(arrayOf("名前を変更", "削除")) { _, which ->
+                when (which) {
+                    0 -> renameHistoryDialog(r)
+                    1 -> confirmDeleteHistory(r)
+                }
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    /** 履歴に名前を付ける/変更するダイアログ。 */
+    private fun renameHistoryDialog(r: TerminalHistoryManager.Record) {
+        val input = EditText(this).apply {
+            setText(r.name)
+            hint = "名前(空にすると日時に戻ります)"
+            setSingleLine(true)
+            setSelection(text.length)
+        }
+        val box = LinearLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("履歴の名前")
+            .setView(box)
+            .setPositiveButton("保存") { _, _ ->
+                TerminalHistoryManager.rename(this, r.id, input.text.toString())
+                renderHistoryList()
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
+    }
+
+    /** 履歴の削除確認。 */
+    private fun confirmDeleteHistory(r: TerminalHistoryManager.Record) {
+        AlertDialog.Builder(this)
+            .setTitle("履歴を削除")
+            .setMessage("「${r.displayName()}」の記録を削除します。よろしいですか？")
+            .setPositiveButton("削除") { _, _ ->
+                TerminalHistoryManager.delete(this, r.id)
+                renderHistoryList()
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
     }
 
     private fun fontButton(label: String, action: () -> Unit) = Button(this).apply {
