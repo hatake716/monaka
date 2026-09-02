@@ -6,7 +6,7 @@
 
 [CCFA](https://github.com/hatake716/CCFA) の派生。Google Play 版CCFAが Play ポリシー対応のために制限していた「全ファイルアクセス」を復活させ、共有ストレージ全体を Linux コンテナへ**リアルタイムに**バインドマウントし、**Claude Code をワンタップで自動インストール**できる **sideload 専用**ビルドです。
 
-![Version](https://img.shields.io/badge/version-v1.1.0-C15F3C)
+![Version](https://img.shields.io/badge/version-v1.1.1-C15F3C)
 &nbsp;![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84)
 &nbsp;![ABI](https://img.shields.io/badge/ABI-arm64--v8a-555)
 &nbsp;![Distribution](https://img.shields.io/badge/配布-sideload%20専用-C15F3C)
