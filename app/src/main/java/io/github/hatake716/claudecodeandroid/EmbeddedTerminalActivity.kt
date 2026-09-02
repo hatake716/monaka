@@ -4,12 +4,16 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.text.InputType
 import android.util.Log
 import android.view.Gravity
@@ -45,11 +49,39 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         const val EXTRA_COMMAND = "command"
         const val EXTRA_RESUME_ID = "resume_id"
 
+        /**
+         * 通知タップからの復帰であることを示す。
+         *
+         * 「実行中のセッションを見に来ただけ」なので、セッションがすでに終了して
+         * いた場合に新しいシェルを勝手に立ち上げてはいけない。メイン画面からの
+         * 明示的な起動（このフラグが無い）とを区別するために使う。
+         */
+        const val EXTRA_FROM_NOTIFICATION = "from_notification"
+
         private const val PREFS = "terminal-ui"
         private const val PREF_FONT_SIZE_PX = "font-size-px"
+        private const val PREF_NOTIFICATION_PROMPTED = "notification-prompted"
         private const val DEFAULT_FONT_DP = 15f
         private const val MIN_FONT_DP = 10f
         private const val MAX_FONT_DP = 28f
+
+        // ヘッダー(上部メニューバー)の帯の高さ。ターミナルの表示領域を最大化するため、
+        // Button 既定の 48dp より薄くする。ただしこれ以上詰めるとタップしづらくなるため、
+        // 横画面でも 32dp を下限とし、幅の方を広めに取って押しやすさを確保する。
+        private const val HEADER_HEIGHT_DP = 34
+        private const val HEADER_HEIGHT_LAND_DP = 32
+
+        // 補助キーの寸法。縦画面は 7 キー × 2 段、横画面は 14 キーを 1 段に並べる。
+        private const val KEY_HEIGHT_DP = 44
+        private const val KEY_HEIGHT_LAND_DP = 36
+        private const val KEY_WIDTH_DP = 74
+
+        // 等分割時の文字サイズ算出用。最長ラベルは "ENTER"/"PGUP" などの 5 文字、
+        // sans-serif の 1 文字幅はフォントサイズのおよそ 0.62 倍。
+        private const val KEY_LABEL_CHARS = 5f
+        private const val KEY_LABEL_WIDTH_RATIO = 0.62f
+        private const val MIN_KEY_TEXT_SP = 9f
+        private const val MAX_KEY_TEXT_SP = 12f
 
         fun intent(
             context: Context,
@@ -79,9 +111,37 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     private lateinit var statusView: TextView
     private lateinit var fontSizeView: TextView
     private lateinit var imeInput: EditText
-    private var session: TerminalSession? = null
     private var leaving = false
     private var launchMode = EmbeddedRuntimeManager.LaunchMode.SHELL
+
+    /**
+     * PTY セッションの所有者。Activity ではなく [TerminalSessionService] が持つ。
+     * こうすることで、ホームに戻る・他アプリへ切り替えるなどでこの Activity が
+     * 破棄されても Linux 側の処理は走り続ける。
+     */
+    private var sessionService: TerminalSessionService? = null
+    private var serviceBound = false
+
+    /** サービスへの接続。接続完了時にセッションを起動または復帰させる。 */
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val service = (binder as? TerminalSessionService.LocalBinder)?.service ?: return
+            sessionService = service
+            service.attachUi(this@EmbeddedTerminalActivity)
+            bindOrStartSession(service)
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            // 参照を手放す前に UI クライアントを外し、破棄済み Activity へ
+            // コールバックが配送され続けないようにする。
+            sessionService?.attachUi(null)
+            sessionService = null
+        }
+    }
+
+    /** 現在のセッション（サービスが保持しているもの）。 */
+    private val session: TerminalSession?
+        get() = sessionService?.session
 
     private var ctrlPressed = false
     private var altPressed = false
@@ -95,6 +155,12 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
     // ライトカラースキームを適用済みか（emulator 初期化後に一度だけ適用する）。
     private var terminalColorsApplied = false
+
+    // 回転時にヘッダーと補助キーバーだけを差し替えるための参照。
+    // ターミナル本体は作り直さない(セッションの再アタッチや表示内容の消失を避ける)。
+    private var contentRoot: LinearLayout? = null
+    private var headerView: View? = null
+    private var extraKeysView: View? = null
 
     // 履歴サイドペイン(左からスライドするオーバーレイ)。
     private var overlayRoot: FrameLayout? = null
@@ -121,7 +187,211 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         // edge-to-edge のインセットはメインコンテンツ(root)側で処理する(buildView 内)。
         // DrawerLayout 自体に padding を付けるとドロワーがずれるため。
         setContentView(buildView())
-        startRequestedSession()
+        ensureNotificationPermission()
+        // セッションはサービスが持つ。サービスへ bind し、接続後に起動/復帰する。
+        bindSessionService()
+    }
+
+    /**
+     * 画面の向きが変わったときに、ヘッダーと補助キーバーだけを作り直す。
+     *
+     * Manifest の configChanges に orientation|screenSize があるため回転しても
+     * Activity は再生成されず、buildView() も呼ばれない。そのままでは横画面用の
+     * 1 段キー配置・薄型ヘッダーへ切り替わらないので、ここで該当部分だけ差し替える。
+     *
+     * ターミナル本体（TerminalView）は作り直さない。作り直すとセッションの
+     * 再アタッチが要り、表示内容やスクロール位置が失われるため。
+     */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val root = contentRoot ?: return
+        // この処理の間は、渡された最新の Configuration を基準にレイアウトを決める。
+        layoutConfig = newConfig
+        try {
+            rebuildOrientationDependentViews(root)
+        } finally {
+            layoutConfig = null
+        }
+    }
+
+    /** ヘッダーと補助キーバーを、現在の向きに合わせて作り直す。 */
+    private fun rebuildOrientationDependentViews(root: LinearLayout) {
+
+        // ヘッダーを同じ位置へ差し替える。
+        headerView?.let { old ->
+            val index = root.indexOfChild(old)
+            if (index >= 0) {
+                root.removeViewAt(index)
+                val header = buildHeader()
+                root.addView(
+                    header,
+                    index,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        headerHeightPx()
+                    )
+                )
+                headerView = header
+            }
+        }
+
+        // 補助キーバーを、向きに応じた段組みで差し替える。
+        extraKeysView?.let { old ->
+            val index = root.indexOfChild(old)
+            if (index >= 0) {
+                root.removeViewAt(index)
+                val keys = buildExtraKeys()
+                root.addView(keys, index)
+                extraKeysView = keys
+            }
+        }
+
+        // 修飾キーの押下状態はビューを作り直すと表示に反映されないため解除しておく
+        // （見た目は非アクティブなのに内部では ON、というズレを防ぐ）。
+        ctrlPressed = false
+        altPressed = false
+        shiftPressed = false
+
+        // 子を差し替えたので、システムバー/IME のインセットを配り直させる。
+        // これがないと padding が回転前の値のまま残り、ヘッダーがステータスバーへ
+        // 潜り込んだり、IME 表示中にコンポーザーが隠れたりする。
+        root.requestApplyInsets()
+    }
+
+    /**
+     * 通知タップでの復帰や、別セッションの指定起動でここへ来る（singleTop）。
+     * 既存の画面を使い回すため、intent を最新化してセッションを繋ぎ直す。
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // 画面を離れた際に立てた leaving を戻さないと、以降の「戻る」が効かなくなる。
+        leaving = false
+        sessionService?.let { bindOrStartSession(it) }
+    }
+
+    /**
+     * セッションを保持するフォアグラウンドサービスを開始し、bind する。
+     * startForegroundService してから bind することで、Activity が消えても
+     * サービス（＝セッション）が生き残る。
+     */
+    private fun bindSessionService() {
+        val intent = TerminalSessionService.intent(this)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        }
+        serviceBound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    /**
+     * 通知が無効なら、有効化を促す案内を一度だけ出す。
+     *
+     * monaka は targetSdk 29 のため、Android 13+ でも POST_NOTIFICATIONS の
+     * 実行時ダイアログは表示されない（requestPermissions は no-op になる）。
+     * 通知はインストール時に付与扱いだが、ユーザーが設定でオフにしていると
+     * バックグラウンド実行中の表示も、そこからの復帰導線も失われる。
+     * そこで権限要求ではなく、通知設定画面への導線を案内する。
+     *
+     * 毎回出すと煩わしいので、案内は一度きり（SharedPreferences に記録）。
+     */
+    private fun ensureNotificationPermission() {
+        if (areNotificationsEnabled()) return
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        if (prefs.getBoolean(PREF_NOTIFICATION_PROMPTED, false)) return
+        prefs.edit().putBoolean(PREF_NOTIFICATION_PROMPTED, true).apply()
+
+        AlertDialog.Builder(this)
+            .setTitle("通知が無効です")
+            .setMessage(
+                "monaka の通知がオフになっています。バックグラウンドで実行中の" +
+                    "セッションの表示や、そこからターミナルへ戻る導線が使えません。" +
+                    "設定で通知を有効にすることをおすすめします。"
+            )
+            .setPositiveButton("設定を開く") { _, _ -> openNotificationSettings() }
+            .setNegativeButton("あとで", null)
+            .show()
+    }
+
+    /** このアプリの通知が有効か。 */
+    private fun areNotificationsEnabled(): Boolean = runCatching {
+        getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+    }.getOrDefault(true)
+
+    /** アプリの通知設定画面を開く（開けない端末ではアプリ詳細画面へ）。 */
+    private fun openNotificationSettings() {
+        val candidates = listOf(
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName),
+            Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.parse("package:$packageName"))
+        )
+        for (intent in candidates) {
+            if (runCatching { startActivity(intent); true }.getOrDefault(false)) return
+        }
+    }
+
+    /** ヘッダー(上部メニューバー)の帯の高さ。横画面ではさらに詰める。 */
+    private fun headerHeightPx(): Int =
+        dp(if (isLandscape()) HEADER_HEIGHT_LAND_DP else HEADER_HEIGHT_DP)
+
+    /**
+     * ヘッダー(上部メニューバー)を組む。
+     *
+     * ここはターミナルの表示領域を削る一方なので、押せる最小限まで薄くする。
+     * Button 既定の最小高さ(48dp)と内部パディングを捨て、[headerHeightPx] の帯に
+     * ぴったり収める。回転時にも作り直せるよう関数に切り出してある。
+     */
+    private fun buildHeader(): View {
+        val headerHeight = headerHeightPx()
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(4), 0)
+            setBackgroundColor(pageColor)
+        }
+
+        header.addView(
+            headerButton("← 戻る") { leaveTerminal() },
+            headerButtonParams(dp(64), headerHeight)
+        )
+
+        // 戻るの右に「履歴」ボタン。左端スワイプが出しづらいための固定導線。
+        header.addView(
+            headerButton("履歴") { openHistoryDrawer() },
+            headerButtonParams(dp(52), headerHeight)
+        )
+
+        // コンテナ名表示は廃止。右側のフォントサイズ/A-/A+ を右端へ寄せるための
+        // 伸縮スペーサー(weight=1・幅0)。高さは 0 に固定する。
+        // (素の View に WRAP_CONTENT を与えると縦に全高まで広がり、ヘッダーが
+        //  画面全体を占有してターミナルが隠れる不具合が出るため。)
+        // titleView/statusView は他所からの代入があるため生成だけ残す(非表示)。
+        titleView = TextView(this)
+        statusView = TextView(this)
+        header.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
+
+        fontSizeView = TextView(this).apply {
+            textSize = 11f
+            setTextColor(mutedColor)
+            gravity = Gravity.CENTER
+            setPadding(dp(4), 0, dp(4), 0)
+        }
+        header.addView(fontSizeView)
+        // 高さを詰めたぶん、幅を広めに取ってタップ面積を確保する。
+        header.addView(
+            fontButton("A−") { changeFontSize(false) },
+            headerButtonParams(dp(48), headerHeight)
+        )
+        header.addView(
+            fontButton("A+") { changeFontSize(true) },
+            headerButtonParams(dp(48), headerHeight)
+        )
+        updateFontSizeLabel()
+        return header
     }
 
     private fun buildView(): View {
@@ -132,75 +402,12 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             setBackgroundColor(pageColor)
         }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            setBackgroundColor(pageColor)
-        }
-
-        val backButton = Button(this).apply {
-            text = "← 戻る"
-            isAllCaps = false
-            textSize = 13f
-            setTextColor(textColor)
-            minWidth = dp(76)
-            setOnClickListener { leaveTerminal() }
-        }
-        header.addView(
-            backButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        // 戻るの右に「履歴」ボタン。左端スワイプが出しづらいための固定導線。
-        val historyButton = Button(this).apply {
-            text = "履歴"
-            isAllCaps = false
-            textSize = 13f
-            setTextColor(textColor)
-            minWidth = dp(56)
-            setOnClickListener { openHistoryDrawer() }
-        }
-        header.addView(
-            historyButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        // コンテナ名表示は廃止。右側のフォントサイズ/A-/A+ を右端へ寄せるための
-        // 伸縮スペーサー(weight=1・幅0)。高さは 0 に固定する。
-        // (素の View に WRAP_CONTENT を与えると縦に全高まで広がり、ヘッダーが
-        //  画面全体を占有してターミナルが隠れる不具合が出るため。)
-        // titleView/statusView は他所からの代入があるため生成だけ残す(非表示)。
-        titleView = TextView(this)
-        statusView = TextView(this)
-        val spacer = View(this)
-        header.addView(
-            spacer,
-            LinearLayout.LayoutParams(0, 0, 1f)
-        )
-
-        fontSizeView = TextView(this).apply {
-            textSize = 11f
-            setTextColor(mutedColor)
-            gravity = Gravity.CENTER
-            setPadding(dp(4), 0, dp(4), 0)
-        }
-        header.addView(fontSizeView)
-        header.addView(fontButton("A−") { changeFontSize(false) })
-        header.addView(fontButton("A+") { changeFontSize(true) })
-        updateFontSizeLabel()
-
+        val header = buildHeader()
         root.addView(
             header,
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, headerHeightPx())
         )
+        headerView = header
 
         terminalView = TerminalView(this, null).apply {
             setTerminalViewClient(this@EmbeddedTerminalActivity)
@@ -216,9 +423,12 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         )
 
-        root.addView(buildExtraKeys())
+        val extraKeys = buildExtraKeys()
+        root.addView(extraKeys)
+        extraKeysView = extraKeys
         root.addView(buildMessageComposer())
         applyInsetsPadding(root, includeIme = true)
+        contentRoot = root
 
         // 履歴サイドペインは、メインUIの上に重ねる FrameLayout オーバーレイ方式。
         // 左端(幅24dp)からの右スワイプで開く。ヘッダーにはボタンを足さない
@@ -389,10 +599,36 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             Toast.makeText(this, "コンテナ「${r.container}」は存在しません", Toast.LENGTH_LONG).show()
             return
         }
-        // 現在のセッションを保存してから、選んだ履歴で新しいターミナルを開き直す。
-        saveHistory()
+        // 履歴の再開は新しいシェルを開く操作。実行中のセッションがあれば、
+        // それを終了させることになるため確認する（バックグラウンドで走らせている
+        // claude や長時間処理を、履歴タップで黙って落とさないようにする）。
+        val running = sessionService?.runningSession()
+        if (running != null) {
+            AlertDialog.Builder(this)
+                .setTitle("実行中のセッションがあります")
+                .setMessage(
+                    "「${r.displayName()}」を再開すると、現在バックグラウンドで実行中の" +
+                        "セッションは終了します。よろしいですか？"
+                )
+                .setPositiveButton("終了して再開") { _, _ -> resumeHistory(r) }
+                .setNegativeButton("キャンセル", null)
+                .show()
+            return
+        }
+        resumeHistory(r)
+    }
+
+    /**
+     * 選んだ履歴のコンテナで新しいターミナルを開く。
+     *
+     * ここでは stopSession() を呼ばない。singleTop のため同じインスタンスの
+     * onNewIntent に届き、[bindOrStartSession] が EXTRA_RESUME_ID を見て
+     * 「既存セッションを畳んでから新規起動」を一箇所で行う。ここで先に
+     * stopSession() すると、保留中の stopSelf() が新セッション生成後に効いて
+     * 起動直後のセッションを殺してしまう競合になる。
+     */
+    private fun resumeHistory(r: TerminalHistoryManager.Record) {
         startActivity(EmbeddedTerminalActivity.resumeIntent(this, r.container, r.id))
-        finish()
     }
 
     /** サイドペインで履歴を長押ししたとき。名前変更 / 削除を選べる。 */
@@ -449,15 +685,74 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         text = label
         isAllCaps = false
         textSize = 12f
-        minWidth = dp(48)
-        minHeight = dp(38)
-        setPadding(dp(5), 0, dp(5), 0)
+        applyCompactButtonMetrics()
         setTextColor(textColor)
         setOnClickListener {
             action()
             terminalView.requestFocus()
         }
     }
+
+    /**
+     * Button 既定の最小サイズ(48dp)と内部パディングを外し、外から与えた寸法ちょうどに
+     * 収まるようにする。背景は消さず、押下フィードバック(ripple)だけを残す
+     * ——背景を null にすると「押しても反応がない」ように見えてしまうため。
+     */
+    private fun Button.applyCompactButtonMetrics() {
+        minWidth = 0
+        minHeight = 0
+        minimumWidth = 0
+        minimumHeight = 0
+        setPadding(0, 0, 0, 0)
+        gravity = Gravity.CENTER
+        background = borderlessRipple()
+    }
+
+    /** 枠のない押下フィードバック(ripple)。取得できない端末では背景なしにする。 */
+    private fun borderlessRipple(): android.graphics.drawable.Drawable? = runCatching {
+        val attrs = intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
+        val typed = theme.obtainStyledAttributes(attrs)
+        try {
+            typed.getDrawable(0)
+        } finally {
+            typed.recycle()
+        }
+    }.getOrNull()
+
+    /**
+     * ヘッダー用の薄いボタン。
+     *
+     * Button は既定で 48dp の最小高さと内部パディングを持ち、そのままだとヘッダーが
+     * 厚くなってターミナルの表示領域を削る。最小サイズと背景を外し、外側から与えた
+     * 寸法ちょうどに収まるようにする。
+     */
+    private fun headerButton(label: String, action: () -> Unit) = Button(this).apply {
+        text = label
+        isAllCaps = false
+        textSize = 12.5f
+        applyCompactButtonMetrics()
+        setTextColor(textColor)
+        setOnClickListener { action() }
+    }
+
+    private fun headerButtonParams(width: Int, height: Int) =
+        LinearLayout.LayoutParams(width, height)
+
+    /**
+     * レイアウト判断に使う Configuration。
+     *
+     * onConfigurationChanged では引数の newConfig が最も新しい値なので、その処理中だけ
+     * これを差し替える。resources.configuration は更新済みであるのが通常だが、
+     * マルチウィンドウや折りたたみ端末では古い値を返しうるため、契約どおり newConfig を使う。
+     */
+    private var layoutConfig: android.content.res.Configuration? = null
+
+    private fun activeConfig(): android.content.res.Configuration =
+        layoutConfig ?: resources.configuration
+
+    /** 横画面か。補助キーの段組みとヘッダー高さの切り替えに使う。 */
+    private fun isLandscape(): Boolean =
+        activeConfig().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     private fun buildMessageComposer(): View {
         val outer = LinearLayout(this).apply {
@@ -553,33 +848,64 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         showComposerKeyboard()
     }
 
+    /** 補助キーの並び。前半 7 つが縦画面の 1 段目、後半 7 つが 2 段目になる。 */
+    private fun extraKeySpecs(): List<KeySpec> = listOf(
+        KeySpec("ESC", action = { send("\u001b") }),
+        KeySpec("CTRL", modifier = ModifierKey.CTRL),
+        KeySpec("ALT", modifier = ModifierKey.ALT),
+        KeySpec("TAB", action = { send("\t") }),
+        KeySpec("↑", action = { send("\u001b[A") }),
+        KeySpec("HOME", action = { send("\u001b[H") }),
+        KeySpec("END", action = { send("\u001b[F") }),
+        KeySpec("PGUP", action = { send("\u001b[5~") }),
+        KeySpec("←", action = { send("\u001b[D") }),
+        KeySpec("↓", action = { send("\u001b[B") }),
+        KeySpec("→", action = { send("\u001b[C") }),
+        KeySpec("PGDN", action = { send("\u001b[6~") }),
+        KeySpec("BKSP", action = { send("\u007f") }),
+        KeySpec("ENTER", action = { send("\r") })
+    )
+
+    /**
+     * 補助キーバーを組む。
+     *
+     * 横画面では画面高が乏しく、2 段だとターミナルの表示行数を大きく削るため、
+     * 14 キーすべてを 1 段に並べる。横幅は十分にあるので、固定幅ではなく
+     * weight で等分割して画面幅ちょうどに収める（横スクロール不要）。
+     * 縦画面はこれまでどおり 7 キー × 2 段。
+     */
     private fun buildExtraKeys(): View {
+        val specs = extraKeySpecs()
+        val landscape = isLandscape()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(4), dp(4), dp(4), dp(6))
+            if (landscape) setPadding(dp(2), dp(2), dp(2), dp(2))
+            else setPadding(dp(4), dp(4), dp(4), dp(6))
             setBackgroundColor(Color.rgb(239, 237, 230))
         }
 
-        outer.addView(keyRow(listOf(
-            KeySpec("ESC", action = { send("\u001b") }),
-            KeySpec("CTRL", modifier = ModifierKey.CTRL),
-            KeySpec("ALT", modifier = ModifierKey.ALT),
-            KeySpec("TAB", action = { send("\t") }),
-            KeySpec("↑", action = { send("\u001b[A") }),
-            KeySpec("HOME", action = { send("\u001b[H") }),
-            KeySpec("END", action = { send("\u001b[F") })
-        )))
-        outer.addView(keyRow(listOf(
-            KeySpec("PGUP", action = { send("\u001b[5~") }),
-            KeySpec("←", action = { send("\u001b[D") }),
-            KeySpec("↓", action = { send("\u001b[B") }),
-            KeySpec("→", action = { send("\u001b[C") }),
-            KeySpec("PGDN", action = { send("\u001b[6~") }),
-            KeySpec("BKSP", action = { send("\u007f") }),
-            KeySpec("ENTER", action = { send("\r") })
-        )))
+        if (landscape && canStretchAllKeys(specs.size)) {
+            outer.addView(keyRow(specs, stretch = true))
+        } else {
+            outer.addView(keyRow(specs.take(7)))
+            outer.addView(keyRow(specs.drop(7)))
+        }
         return outer
     }
+
+    /**
+     * 全キーを 1 段に等分割しても、ラベルが省略されずに収まるか。
+     *
+     * 横画面でも分割画面などで幅が半分になることがあり、そこまで詰めると
+     * 「ENTER」「PGUP」が見切れる。読めなくなるくらいなら 2 段 + 横スクロールの
+     * 方がましなので、最小文字サイズで収まらない幅では等分割をやめる。
+     */
+    private fun canStretchAllKeys(keyCount: Int): Boolean =
+        perKeyWidthDp(keyCount) >= MIN_KEY_TEXT_SP * KEY_LABEL_CHARS * KEY_LABEL_WIDTH_RATIO
+
+    /** 等分割したときの 1 キーあたりの幅(dp)。 */
+    private fun perKeyWidthDp(keyCount: Int): Float =
+        (activeConfig().screenWidthDp.toFloat() - 4f) / keyCount - 2f
 
     private enum class ModifierKey { CTRL, ALT, SHIFT }
 
@@ -589,7 +915,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         val modifier: ModifierKey? = null
     )
 
-    private fun keyRow(specs: List<KeySpec>): View {
+    /**
+     * 補助キーの 1 段を組む。
+     *
+     * [stretch] が true なら各キーを weight で等分割し、行全体を画面幅に収める
+     * （横画面用。全キーが一望でき、横スクロールが要らない）。
+     * false なら固定幅で並べ、入りきらない分は横スクロールで見せる。
+     */
+    private fun keyRow(specs: List<KeySpec>, stretch: Boolean = false): View {
+        val keyHeight = dp(if (isLandscape()) KEY_HEIGHT_LAND_DP else KEY_HEIGHT_DP)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -598,12 +932,18 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             val button = Button(this).apply {
                 text = spec.label
                 isAllCaps = false
-                textSize = 12f
+                // 等分割時は 1 キーあたりの幅が画面幅に依存するので、幅から
+                // 「ENTER」「PGUP」等の 5 文字が省略されない大きさを求める。
+                textSize = if (stretch) stretchedKeyTextSize(specs.size) else 12f
                 setTextColor(terminalText)
                 setBackgroundColor(Color.rgb(255, 255, 255))
-                minWidth = dp(66)
-                minHeight = dp(42)
-                setPadding(dp(8), 0, dp(8), 0)
+                // 既定の最小サイズを外し、与えた寸法どおりに収まるようにする。
+                minWidth = 0
+                minHeight = 0
+                minimumWidth = 0
+                minimumHeight = 0
+                setPadding(0, 0, 0, 0)
+                gravity = Gravity.CENTER
                 setOnClickListener {
                     if (spec.modifier != null) toggleModifier(spec.modifier, this)
                     else {
@@ -612,15 +952,32 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                     }
                 }
             }
-            row.addView(
-                button,
-                LinearLayout.LayoutParams(dp(74), dp(46)).apply { marginEnd = dp(4) }
-            )
+            val params = if (stretch) {
+                LinearLayout.LayoutParams(0, keyHeight, 1f).apply { marginEnd = dp(2) }
+            } else {
+                LinearLayout.LayoutParams(dp(KEY_WIDTH_DP), keyHeight).apply { marginEnd = dp(4) }
+            }
+            row.addView(button, params)
         }
+        // 等分割時は画面幅に収まっているのでスクロールコンテナは不要。
+        if (stretch) return row
         return HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(row)
         }
+    }
+
+    /**
+     * 等分割した補助キーに収まる文字サイズを求める。
+     *
+     * 1 キーの幅は画面幅 ÷ キー数で決まるため端末によって変わる。最長ラベル
+     * (ENTER / PGUP など 5 文字) が省略されない範囲で、できるだけ縦画面と同じ
+     * 12sp に近づける。狭い端末では段階的に落とす。
+     */
+    private fun stretchedKeyTextSize(keyCount: Int): Float {
+        // 最長ラベル(5 文字) × 文字幅比 が必要幅。左右に少し余白を見込む。
+        val fit = perKeyWidthDp(keyCount) / (KEY_LABEL_CHARS * KEY_LABEL_WIDTH_RATIO * 1.25f)
+        return fit.coerceIn(MIN_KEY_TEXT_SP, MAX_KEY_TEXT_SP)
     }
 
     private fun toggleModifier(key: ModifierKey, button: Button) {
@@ -633,12 +990,101 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         terminalView.requestFocus()
     }
 
-    private fun startRequestedSession() {
-        val container = intent.getStringExtra(EXTRA_CONTAINER)
+    /**
+     * サービス接続後の入口。
+     *
+     * すでにサービスが生きたセッションを持っていれば（＝バックグラウンドから戻ってきた、
+     * あるいは通知タップで復帰した場合）、新しく起動せずにその画面へ再アタッチする。
+     * これがバックグラウンド継続の実際の効き目になる部分で、claude の対話や
+     * 走行中のビルドがそのまま画面に戻ってくる。
+     */
+    private fun bindOrStartSession(service: TerminalSessionService) {
+        // 空文字は「指定なし」と同じ扱いにする。古い通知などから空の値が届いても、
+        // 存在しないコンテナの指定起動と誤解釈して生きたセッションを巻き添えにしない。
+        val requestedContainer = intent.getStringExtra(EXTRA_CONTAINER)?.takeIf { it.isNotBlank() }
+        val resumeId = intent.getStringExtra(EXTRA_RESUME_ID)
+        val running = service.runningSession()
+
+        // 「実行すべきコマンドを持った起動」は、必ず新しいシェルで実行しなければ
+        // ならない。既存セッションへ復帰させてしまうと、Claude Code のインストールや
+        // 基本CLIの更新が黙って実行されないまま、元のシェルが表示されるだけになる。
+        // 履歴からの再開（resumeId 付き）も「新しいシェルを開く」操作なので同じ扱い。
+        if (requiresFreshSession() || !resumeId.isNullOrBlank()) {
+            // サービスは畳まずセッションだけ終了する（畳むと直後の新規起動と競合する）。
+            if (running != null) service.endSession()
+            startRequestedSession(service)
+            return
+        }
+
+        // 生存セッションがあり、別コンテナを明示指定されたわけでもなければ復帰する。
+        if (running != null && (requestedContainer == null || requestedContainer == service.container)) {
+            reattachSession(service, running)
+            return
+        }
+
+        // 通知から復帰しに来たのにセッションが終了済みだった場合は、勝手に新しい
+        // シェルを立ち上げず、終了した旨だけを示す（メイン画面からの明示的な起動には
+        // このフラグが付かないので、通常の新規起動は妨げない）。
+        if (running == null && intent.getBooleanExtra(EXTRA_FROM_NOTIFICATION, false)) {
+            statusView.text = "セッションは終了しています · 戻るボタンでメイン画面へ"
+            Toast.makeText(this, "セッションは終了しています", Toast.LENGTH_LONG).show()
+            // 用済みの終了通知とサービスを片付ける。
+            service.stopSession()
+            return
+        }
+
+        startRequestedSession(service)
+    }
+
+    /**
+     * この起動が「新しいシェルで実行しなければならない」ものか。
+     *
+     * COMMAND / SETUP モード（＝実行すべきコマンドを伴う起動）は、既存セッションへ
+     * 復帰させると指定コマンドが実行されないまま終わってしまうため、常に新規で起動する。
+     */
+    private fun requiresFreshSession(): Boolean {
+        if (!intent.getStringExtra(EXTRA_COMMAND).isNullOrBlank()) return true
+        val mode = runCatching {
+            EmbeddedRuntimeManager.LaunchMode.valueOf(
+                intent.getStringExtra(EXTRA_MODE) ?: EmbeddedRuntimeManager.LaunchMode.SHELL.name
+            )
+        }.getOrDefault(EmbeddedRuntimeManager.LaunchMode.SHELL)
+        return mode != EmbeddedRuntimeManager.LaunchMode.SHELL
+    }
+
+    /** 生存中のセッションを画面へ繋ぎ直す（バックグラウンドからの復帰）。 */
+    private fun reattachSession(service: TerminalSessionService, running: TerminalSession) {
+        launchMode = EmbeddedRuntimeManager.LaunchMode.SHELL
+        updateComposerHint()
+        titleView.text = service.sessionTitle
+        statusView.text = "アプリ内PTY · ${service.container}"
+        historyContainer = service.container
+        historyId = service.historyId
+        // 復帰時は emulator がすでに生きているため、配色を適用し直す必要がある。
+        terminalColorsApplied = false
+
+        // attachSession は内部で mEmulator を捨てて updateSize() から取り直すが、
+        // ビューの幅・高さが 0（= レイアウト前）だと取り直しに失敗して黒画面のまま
+        // 残る。onServiceConnected は onCreate 直後（レイアウト前）に来ることが
+        // あるため、必ずレイアウト後に実行する。
+        terminalView.post {
+            terminalView.attachSession(running)
+            applyLightTerminalColors(running)
+            terminalView.onScreenUpdated()
+            imeInput.requestFocus()
+            imeInput.postDelayed({ showComposerKeyboard() }, 300)
+        }
+    }
+
+    private fun startRequestedSession(service: TerminalSessionService) {
+        val container = intent.getStringExtra(EXTRA_CONTAINER)?.takeIf { it.isNotBlank() }
             ?: EmbeddedRuntimeManager.activeContainer(this)
         if (container == null) {
             statusView.text = "No Linux container is installed."
             Toast.makeText(this, "先にLinuxコンテナを作成してください", Toast.LENGTH_LONG).show()
+            // セッションを一つも持たないままサービスが常駐し、実行中通知だけが
+            // residue として残らないよう畳む。
+            service.stopSession()
             return
         }
 
@@ -655,6 +1101,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             .getOrElse {
                 statusView.text = it.message ?: "Runtime launch error"
                 Toast.makeText(this, statusView.text, Toast.LENGTH_LONG).show()
+                // 起動できなかったので、実行中通知を残さずサービスを畳む。
+                service.stopSession()
                 return
             }
 
@@ -676,16 +1124,21 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             showResumeLog(resumeId)
         }
 
-        val newSession = TerminalSession(
-            spec.executable,
-            spec.cwd,
-            spec.args,
-            spec.env,
-            5000,
-            this
+        // セッションの生成と保持はサービスが行う（Activity が消えても生き残らせるため）。
+        // コマンドを伴う起動は既存セッションを再利用させない（指定コマンドが
+        // 実行されないまま既存シェルが返るのを防ぐ）。
+        val newSession = service.startSession(
+            spec,
+            container,
+            historyId,
+            displayTitle,
+            reuseExisting = !requiresFreshSession()
         )
-        newSession.mSessionName = displayTitle
-        session = newSession
+        // 既存セッションが再利用された場合、記録先はサービス側の ID が正。
+        // 採番したての ID を使い続けると、Activity とサービスで保存先が食い違う。
+        historyId = service.historyId
+        historyContainer = service.container
+        terminalColorsApplied = false
         terminalView.attachSession(newSession)
         // ライトモードのカラースキームを適用（emulator 初期化後に色を書き換える）。
         applyLightTerminalColors(newSession)
@@ -784,6 +1237,14 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
     /** このセッションのやりとりを履歴として保存する。 */
     private fun saveHistory() {
+        // サービスがセッションを持っていれば、そちらのトランスクリプトが正。
+        val service = sessionService
+        if (service != null && service.historyId.isNotBlank()) {
+            service.saveHistory()
+            return
+        }
+        // サービスがセッションを持たない（起動に失敗した等）場合は、
+        // Activity 側で拾えている分だけでも保存する。
         val transcript = latestTranscript
         if (historyId.isBlank() || historyContainer.isBlank()) return
         runCatching {
@@ -791,6 +1252,14 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         }
     }
 
+    /**
+     * ターミナル画面を閉じてメイン画面へ戻る。
+     *
+     * セッションは終了させない。サービスが保持したまま実行を続けるため、
+     * claude や長時間処理を走らせたまま安全にこの画面を離れられる。
+     * 明示的に終わらせたいときは通知の「停止」、またはメイン画面の
+     * 「実行中のセッションを停止」から止める。
+     */
     private fun leaveTerminal() {
         if (leaving) return
         leaving = true
@@ -804,8 +1273,6 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             getSystemService(InputMethodManager::class.java)
                 .hideSoftInputFromWindow(token, 0)
         }
-        session?.finishIfRunning()
-        session = null
         // 戻ると必ずメイン画面（メニュー）を表示する。どの経路（起動時の自動遷移や
         // セットアップ後の自動遷移を含む）からターミナルを開いても、既存の MainActivity を
         // 再利用してその上のターミナルを畳む。EXTRA_SHOW_MENU で、メニュー側の
@@ -832,11 +1299,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
 
     override fun onDestroy() {
-        if (isFinishing) {
-            // 戻るボタン以外(タスク終了・回転以外の破棄)でも履歴を保存しておく。
-            if (!leaving) saveHistory()
-            session?.finishIfRunning()
+        // 画面が消えるだけではセッションを終了しない（バックグラウンド継続の核心）。
+        // UI クライアントの参照だけ外し、以降の PTY 出力はサービスが受け取り続ける。
+        if (!leaving) saveHistory()
+        sessionService?.attachUi(null)
+        if (serviceBound) {
+            runCatching { unbindService(serviceConnection) }
+            serviceBound = false
         }
+        sessionService = null
         super.onDestroy()
     }
 
@@ -844,18 +1315,23 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         // emulator が初期化されたら(最初の出力時)ライト配色を適用する。
         applyLightTerminalColors(changedSession)
         terminalView.onScreenUpdated()
-        // 画面が変わるたびに最新トランスクリプト(スクロールバック込み・プレーンテキスト)を
-        // 保持しておく。leaveTerminal / onDestroy で履歴として保存する。
-        runCatching {
-            changedSession.emulator?.screen?.transcriptText?.let { latestTranscript = it }
+        // トランスクリプトの記録はサービス側が行う（画面が無い間の出力も残すため）。
+        // サービスが記録対象を持っていない場合だけ、こちらで保持しておく。
+        if (sessionService?.historyId.isNullOrBlank()) {
+            runCatching {
+                changedSession.emulator?.screen?.transcriptText?.let { latestTranscript = it }
+            }
         }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) = Unit
 
     override fun onSessionFinished(finishedSession: TerminalSession) {
-        statusView.text =
-            "Process completed (${finishedSession.exitStatus}) · 戻るボタンでメイン画面へ戻れます"
+        // ヘッダーからステータス欄を廃してターミナル領域へ回したため、終了は Toast で伝える。
+        // statusView は画面に出ていないので、ここへ書くだけではユーザーに届かない。
+        val message = "プロセスが終了しました (exit ${finishedSession.exitStatus}) · 戻るボタンでメイン画面へ"
+        statusView.text = message
+        runCatching { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
     }
 
     override fun onCopyTextToClipboard(session: TerminalSession, text: String) {

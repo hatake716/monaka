@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ステータスバー通知アイコン。
+  Android はステータスバーのアイコンをアルファチャンネルのみで描画し、色は
+  システムが上書きする。そのため白単色のシルエットで、最中(皮の器 + 餡の蓋)を
+  表現する。24dp グリッド、余白を確保して小サイズでも潰れない形にする。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+
+    <!-- 上の皮（蓋）: 伏せた半円 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.2,11.2 A7.8,7.8 0 0 1 19.8,11.2 Z" />
+
+    <!-- 餡の層 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.4,12.2 H19.6 V13.6 H4.4 Z" />
+
+    <!-- 下の皮（器）: 上向きの半円 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.2,14.6 A7.8,7.8 0 0 0 19.8,14.6 Z" />
+</vector>

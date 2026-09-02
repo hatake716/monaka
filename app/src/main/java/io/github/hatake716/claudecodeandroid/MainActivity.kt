@@ -6,7 +6,10 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -20,6 +23,12 @@ class MainActivity : Activity() {
     companion object {
         /** ターミナルから戻ったとき、メニューを表示させ自動ターミナル遷移を抑止する。 */
         const val EXTRA_SHOW_MENU = "show_menu"
+
+        /**
+         * このプロセスで一度ターミナルへ自動遷移したか。
+         * Activity の再生成をまたいで一回きりにするため、プロセス単位で保持する。
+         */
+        private var processJumpedToTerminal = false
 
         private const val BASE_DEV_SETUP =
             "apt-get -o Acquire::Retries=3 update && " +
@@ -65,8 +74,20 @@ class MainActivity : Activity() {
     private lateinit var setupOperationText: TextView
     private lateinit var setupButton: Button
 
+    /** バックグラウンド実行中のセッションを止めるボタン（実行中のみ表示）。 */
+    private lateinit var stopSessionButton: Button
+
+    /** 電池の最適化からの除外を案内するボタン（除外済みなら文言を変える）。 */
+    private lateinit var batteryButton: Button
+
     // このプロセスで一度ターミナルへ自動遷移したか（起動時ジャンプの一回制御）。
-    private var jumpedToTerminal = false
+    //
+    // インスタンス変数にすると、メモリ逼迫や回転で MainActivity が再生成された際に
+    // false へ戻り、onCreate の maybeJumpToTerminal が再び発火してメニューを
+    // 見られなくなる。プロセス単位の状態として companion object に持つ。
+    private var jumpedToTerminal: Boolean
+        get() = processJumpedToTerminal
+        set(value) { processJumpedToTerminal = value }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,6 +123,93 @@ class MainActivity : Activity() {
         super.onResume()
         // 権限画面から戻ってきたときに全ファイルアクセスの状態表示を更新する。
         refreshStorageStatus()
+        // ターミナルから戻ってきたときに、バックグラウンド実行中かどうかを反映する。
+        refreshSessionStatus()
+    }
+
+    /** バックグラウンド実行中のセッションの有無をボタン表示に反映する。 */
+    private fun refreshSessionStatus() {
+        if (!::stopSessionButton.isInitialized) return
+        val running = TerminalSessionService.isSessionRunning
+        stopSessionButton.visibility = if (running) View.VISIBLE else View.GONE
+        if (running) {
+            stopSessionButton.text =
+                "実行中のセッションを停止（${TerminalSessionService.runningContainer}）"
+        }
+        if (::batteryButton.isInitialized) {
+            batteryButton.text =
+                if (isIgnoringBatteryOptimizations()) "✓ バックグラウンド実行: 許可済み"
+                else "バックグラウンド実行を許可（電池の最適化）"
+        }
+    }
+
+    /**
+     * 「電池の最適化」の除外設定へ誘導する。
+     *
+     * フォアグラウンドサービスでプロセスの優先度は確保できるが、端末メーカーの
+     * 省電力機能や Doze は別枠で効くため、長時間処理を確実に走らせるには
+     * ユーザーによる除外が要る。除外の可否はアプリ側では決められないので、
+     * 状態を表示したうえでシステム設定を開くだけにとどめる。
+     */
+    private fun openBatteryOptimizationSettings() {
+        if (isIgnoringBatteryOptimizations()) {
+            AlertDialog.Builder(this)
+                .setTitle("設定済みです")
+                .setMessage(
+                    "monaka はすでに電池の最適化から除外されています。" +
+                        "バックグラウンドでの実行が維持されます。"
+                )
+                .setPositiveButton("OK", null)
+                .setNeutralButton("設定を開く") { _, _ -> launchBatterySettings() }
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("バックグラウンド実行を許可")
+            .setMessage(
+                "設定画面で monaka を「最適化しない / 制限なし」に変更すると、" +
+                    "画面消灯中や他アプリ使用中も Linux 側の処理が止まらなくなります。\n\n" +
+                    "設定画面を開きますか？"
+            )
+            .setPositiveButton("設定を開く") { _, _ -> launchBatterySettings() }
+            .setNegativeButton("あとで", null)
+            .show()
+    }
+
+    /** 端末の電池最適化設定画面を開く（機種差があるため段階的にフォールバックする）。 */
+    private fun launchBatterySettings() {
+        val candidates = listOf(
+            // アプリごとの詳細画面（ここから「電池」→「制限なし」を選べる機種が多い）
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:$packageName")),
+            // 最適化対象アプリの一覧
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        )
+        for (intent in candidates) {
+            if (runCatching { startActivity(intent); true }.getOrDefault(false)) return
+        }
+        showError("電池の最適化設定画面を開けませんでした。端末の「設定 > アプリ > monaka」から変更してください。")
+    }
+
+    /** 電池の最適化から除外されているか。 */
+    private fun isIgnoringBatteryOptimizations(): Boolean = runCatching {
+        getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+    }.getOrDefault(false)
+
+    /** バックグラウンドで走っているセッションを、確認のうえ停止する。 */
+    private fun confirmStopSession() {
+        AlertDialog.Builder(this)
+            .setTitle("セッションを停止")
+            .setMessage(
+                "バックグラウンドで実行中の Linux セッションを終了します。" +
+                    "実行途中の処理は中断されます。よろしいですか？"
+            )
+            .setPositiveButton("停止") { _, _ ->
+                TerminalSessionService.requestStop(this)
+                stopSessionButton.postDelayed({ refreshSessionStatus() }, 500)
+            }
+            .setNegativeButton("キャンセル", null)
+            .show()
     }
 
     private fun buildView(): View {
@@ -148,10 +256,27 @@ class MainActivity : Activity() {
         section.addView(button("ターミナル履歴を見る") {
             startActivity(Intent(this, HistoryActivity::class.java))
         }, top(dp(8)))
+        // バックグラウンドで走り続けているセッションを、ここからも止められるようにする。
+        stopSessionButton = button("実行中のセッションを停止") { confirmStopSession() }.apply {
+            visibility = View.GONE
+        }
+        section.addView(stopSessionButton, top(dp(8)))
+        // バックグラウンド実行を確実にするための端末側設定（電池の最適化の除外）へ誘導する。
+        batteryButton = button("バックグラウンド実行を許可（電池の最適化）") {
+            openBatteryOptimizationSettings()
+        }
+        section.addView(batteryButton, top(dp(8)))
         section.addView(help(
             "アクティブなLinuxコンテナのシェルをアプリ内ターミナルで開きます。" +
                 "claude を導入済みなら、ここで claude を起動して使えます。" +
+                "ターミナルを閉じたりホームに戻ったりしても処理は動き続け、" +
+                "通知またはこの画面から再開・停止できます。" +
                 "過去のやりとりは「ターミナル履歴」から見返して再開できます。"
+        ))
+        section.addView(help(
+            "長時間の処理を確実に走らせ続けるには、「電池の最適化」からmonakaを除外して" +
+                "ください。除外しないと、画面消灯後に端末側の省電力機能でLinux側の処理が" +
+                "止められることがあります。"
         ))
         section.addView(TextView(this).apply {
             text = "ESC   CTRL   ALT   TAB   ↑   HOME   END\nPGUP   ←   ↓   →   PGDN   BKSP   ENTER"

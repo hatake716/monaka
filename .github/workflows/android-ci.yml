@@ -63,6 +63,20 @@ jobs:
           # Claude Code 自動インストール機能が入っていること（公式インストーラを使用）。
           grep -q 'claude.ai/install.sh' app/src/main/java/io/github/hatake716/claudecodeandroid/MainActivity.kt
           grep -q 'installClaudeCode' app/src/main/java/io/github/hatake716/claudecodeandroid/MainActivity.kt
+          # バックグラウンド実行の維持: セッションはフォアグラウンドサービスが所有すること。
+          grep -q 'FOREGROUND_SERVICE' app/src/main/AndroidManifest.xml
+          grep -q 'foregroundServiceType' app/src/main/AndroidManifest.xml
+          grep -q 'TerminalSessionService' app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/io/github/hatake716/claudecodeandroid/TerminalSessionService.kt
+          grep -q 'startForeground' app/src/main/java/io/github/hatake716/claudecodeandroid/TerminalSessionService.kt
+          grep -q 'PARTIAL_WAKE_LOCK' app/src/main/java/io/github/hatake716/claudecodeandroid/TerminalSessionService.kt
+          # Activity 側は Service を bind して使い、自前で TerminalSession を生成しないこと。
+          grep -q 'bindService' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
+          ! grep -q 'TerminalSession(' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
+          # 横画面のレイアウト最適化(補助キー1段化・薄型ヘッダー)が入っていること。
+          grep -q 'onConfigurationChanged' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
+          grep -q 'canStretchAllKeys' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
+          grep -q 'HEADER_HEIGHT_LAND_DP' app/src/main/java/io/github/hatake716/claudecodeandroid/EmbeddedTerminalActivity.kt
           # SAF コピー同期は廃止済み（旧クラスが残っていないこと）。
           ! test -f app/src/main/java/io/github/hatake716/claudecodeandroid/StorageShareManager.kt
           ! test -f app/src/main/java/io/github/hatake716/claudecodeandroid/SafSyncManager.kt

@@ -22,6 +22,62 @@ Android / CCFA APK
              └─ /phone/*
 ```
 
+## Background execution
+
+The PTY session (and therefore every Linux process under PRoot) is owned by
+`TerminalSessionService`, a foreground service — **not** by the Activity.
+
+When an Activity owns the session, moving the app to the background drops its
+process to *cached*, where Android may freeze it under Doze, reap its child
+processes with the phantom process killer (Android 12+), or kill it outright
+under memory pressure. Long-running work — an interactive `claude` session, a
+build — therefore stopped as soon as the user left the screen.
+
+Running a foreground service raises the process back to visible-equivalent
+priority, which removes it from all three paths. The Activity keeps only the
+view and the input composer:
+
+```text
+TerminalSessionService (foreground service, owns the session)
+        │  binder
+        ▼
+EmbeddedTerminalActivity (view + IME composer, disposable)
+```
+
+- Session output is delivered to the service first, which records the
+  transcript before forwarding to the UI client — so output produced while no
+  Activity exists still reaches the terminal history.
+- A `PARTIAL_WAKE_LOCK` is held for the lifetime of a running session.
+- Leaving the terminal screen does **not** end the session. The user ends it
+  explicitly from the notification's *stop* action or from the main screen.
+- Reopening the terminal re-attaches the live session instead of spawning a
+  new one. A launch that carries a command (COMMAND / SETUP mode) always starts
+  a fresh shell, so the command cannot be silently swallowed by an existing one.
+
+Manufacturer battery savers act independently of the above, so the main screen
+links to the system's battery-optimization exclusion for the app.
+
+## Landscape layout
+
+Screen space spent on chrome is screen space taken from the terminal, and in
+landscape the height budget is small. The terminal screen therefore adapts:
+
+- **Extra keys collapse to one row.** Portrait keeps 7 keys × 2 rows at a fixed
+  width (horizontally scrollable). Landscape has the width to spare, so all 14
+  keys are laid out in a single row using layout weights — every key visible, no
+  scrolling. If the width cannot fit readable labels (split-screen, for
+  instance), it falls back to the two-row scrolling form.
+- **The header is slimmed** from the platform `Button` minimum (48dp plus
+  padding) to a 32–34dp band, with the default minimum size and padding cleared.
+
+Together these return roughly 92dp — about 22% of the height on a 923 × 411dp
+landscape screen, or ~5 text rows at a 15dp font.
+
+Because the manifest declares `orientation|screenSize` in `configChanges`, the
+Activity is not recreated on rotation; `onConfigurationChanged` swaps just the
+header and the key bar. The `TerminalView` is deliberately left in place so the
+session stays attached and the visible buffer survives.
+
 ## PTY and Japanese input
 
 `TerminalSession` opens a PTY through the terminal-emulator JNI layer. `TerminalView` renders terminal output and handles terminal-focused keyboard events.
