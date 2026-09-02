@@ -32,15 +32,51 @@ fetch() {
   test -s "$out"
 }
 
+# ミラーを試せる取得。第1引数から順に、最初に成功した URL の内容を採用する。
+#
+# www.gnu.org は環境によっては到達できない(GitHub Actions のランナーからは
+# 接続がタイムアウトする)。GPL/LGPL の本文は配布に必須なので、取得できないと
+# リリースがまるごと止まる。SPDX の license-list-data は同一のライセンス本文を
+# 配っている公式データセットなので、代替として使う。
+fetch_any() {
+  local out="$1"; shift
+  local url
+  for url in "$@"; do
+    echo "Fetching $url"
+    if curl -fL \
+        --connect-timeout 20 \
+        --max-time 180 \
+        --retry 3 \
+        --retry-delay 3 \
+        --retry-connrefused \
+        --retry-all-errors \
+        "$url" -o "$out" && test -s "$out"; then
+      return 0
+    fi
+    echo "  -> 取得できませんでした。次のミラーを試します。" >&2
+    rm -f "$out"
+  done
+  echo "すべての取得先が失敗しました: $out" >&2
+  return 1
+}
+
 verify_sha256() {
   local expected="$1" file="$2"
   echo "$expected  $file" | sha256sum -c -
 }
 
-fetch "https://www.apache.org/licenses/LICENSE-2.0.txt" "$LICENSES/APACHE-2.0.txt"
-fetch "https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt" "$LICENSES/GPL-2.0.txt"
-fetch "https://www.gnu.org/licenses/gpl-3.0.txt" "$LICENSES/GPL-3.0.txt"
-fetch "https://www.gnu.org/licenses/lgpl-3.0.txt" "$LICENSES/LGPL-3.0.txt"
+fetch_any "$LICENSES/APACHE-2.0.txt" \
+  "https://www.apache.org/licenses/LICENSE-2.0.txt" \
+  "https://raw.githubusercontent.com/spdx/license-list-data/main/text/Apache-2.0.txt"
+fetch_any "$LICENSES/GPL-2.0.txt" \
+  "https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt" \
+  "https://raw.githubusercontent.com/spdx/license-list-data/main/text/GPL-2.0-only.txt"
+fetch_any "$LICENSES/GPL-3.0.txt" \
+  "https://www.gnu.org/licenses/gpl-3.0.txt" \
+  "https://raw.githubusercontent.com/spdx/license-list-data/main/text/GPL-3.0-only.txt"
+fetch_any "$LICENSES/LGPL-3.0.txt" \
+  "https://www.gnu.org/licenses/lgpl-3.0.txt" \
+  "https://raw.githubusercontent.com/spdx/license-list-data/main/text/LGPL-3.0-only.txt"
 fetch "https://raw.githubusercontent.com/termux/libandroid-shmem/v0.7/LICENSE" "$LICENSES/BSD-3-Clause-libandroid-shmem.txt"
 fetch "https://raw.githubusercontent.com/termux/termux-app/v0.118.0/LICENSE.md" "$LICENSES/TERMUX-TERMINAL-LICENSE.md"
 fetch "https://raw.githubusercontent.com/apache/commons-compress/rel/commons-compress-1.27.1/NOTICE.txt" "$LICENSES/COMMONS-COMPRESS-NOTICE.txt"
