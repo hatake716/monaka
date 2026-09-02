@@ -30,6 +30,8 @@ class MainActivity : Activity() {
          */
         private var processJumpedToTerminal = false
 
+        private const val STATE_USER_WANTS_MENU = "user-wants-menu"
+
         private const val BASE_DEV_SETUP =
             "apt-get -o Acquire::Retries=3 update && " +
                 "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y ca-certificates curl git ripgrep locales"
@@ -89,6 +91,32 @@ class MainActivity : Activity() {
         get() = processJumpedToTerminal
         set(value) { processJumpedToTerminal = value }
 
+    /**
+     * ユーザーが明示的にメニューを開いている状態か。
+     *
+     * ターミナルの「戻る」で来たときに立て、以後この画面にいる間は自動遷移しない。
+     *
+     * intent の種類では「アイコンで開き直した」のか「タスクスイッチャーで戻ってきた」
+     * のかを区別できない（Android はどちらでも ACTION_MAIN + CATEGORY_LAUNCHER を
+     * 配送しうるうえ、Activity が最前面なら onNewIntent 自体が配送されないこともある）。
+     * そこで intent には頼らず、『ユーザーがメニューを見たいと示したか』を状態として
+     * 持ち、これを優先して評価する。
+     *
+     * Activity が回収されて作り直されても意思が消えないよう、保存・復元する。
+     */
+    private var userWantsMenu = false
+
+    /**
+     * この画面が一度でも表示されたか（[onStart] で立つ）。
+     *
+     * onCreate → onStart の順なので、新規作成時の判定では false、
+     * 表示後に届く onNewIntent での判定では true になる。これを使って
+     * 「表示済みの画面へ intent が来た」場合だけ往復を抑止する。
+     *
+     * 保存・復元はしない（作り直した画面は「未表示」が正しい）。
+     */
+    private var hasBeenShown = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = page
@@ -96,28 +124,39 @@ class MainActivity : Activity() {
         setContentView(buildView().also { it.applyEdgeToEdgeInsets() })
         EmbeddedRuntimeManager.ensureHostRuntime(this)
         refreshStorageStatus()
+        // 画面を作り直した場合（回転・メモリ回収からの復帰）は、ユーザーの意思を復元する。
+        // ここで復元しないと「戻る」で開いたメニューが、回収を挟んだ途端に
+        // ターミナルへ奪われてしまう。
+        // hasBeenShown は復元しない。これは「このインスタンスが一度表示されたか」を
+        // 表すもので、画面を作り直した時点では未表示が正しい。復元してしまうと、
+        // プロセス単位の jumpedToTerminal と寿命が食い違い、下の往復防止ガードが
+        // 「復帰したのにターミナルへ飛べない」方向に誤作動する。
+        if (savedInstanceState != null) {
+            userWantsMenu = savedInstanceState.getBoolean(STATE_USER_WANTS_MENU, false)
+        }
+
         // セットアップ完了以降（アクティブなコンテナがある）は、アプリ起動時に
         // 直接エージェントターミナルを開く。ターミナルから「戻る」で来たときは
         // EXTRA_SHOW_MENU が付くので飛ばさず、このメニューを表示する。
         maybeJumpToTerminal(intent)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_USER_WANTS_MENU, userWantsMenu)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        hasBeenShown = true
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // singleTop なので、戻る/再タップでの再表示はここに来る。Intent を最新化する。
         setIntent(intent)
-        // アプリアイコンの再タップ（LAUNCHER intent）は毎回ターミナル直行にしたいので、
-        // ジャンプ済みフラグを解除して再度飛べるようにする。ターミナルからの「戻る」は
-        // EXTRA_SHOW_MENU 付きの内部 intent なので対象外（メニューを表示）。
-        if (isLauncherIntent(intent)) {
-            jumpedToTerminal = false
-            maybeJumpToTerminal(intent)
-        }
+        maybeJumpToTerminal(intent)
     }
-
-    private fun isLauncherIntent(intent: Intent): Boolean =
-        Intent.ACTION_MAIN == intent.action &&
-            intent.hasCategory(Intent.CATEGORY_LAUNCHER)
 
     override fun onResume() {
         super.onResume()
@@ -410,6 +449,8 @@ class MainActivity : Activity() {
                     setupOperationText.text = "Linux環境の準備が完了しました。エージェントターミナルを開きます。"
                     // 基本CLIを流したうえで、Enter 待ちせずそのままエージェントターミナル
                     // （ログインシェル）に入る。戻るボタンでこのメイン画面に戻る。
+                    // 自動遷移と同じく「もう飛ばした」扱いにして、二重に開かないようにする。
+                    jumpedToTerminal = true
                     startActivity(
                         EmbeddedTerminalActivity.intent(
                             this,
@@ -444,11 +485,25 @@ class MainActivity : Activity() {
      * アプリ起動時、セットアップ完了済み（アクティブコンテナあり）なら直接
      * エージェントターミナルを開く。ターミナルから戻ってきたとき
      * （EXTRA_SHOW_MENU 付き）は飛ばさず、このメニューを表示する。
-     * 無限ループ防止のため、飛ばしたら jumpedToTerminal で一度きりにする。
+     *
+     * 判定の優先順位:
+     *   1. ターミナルからの「戻る」なら、以後この画面に留まる意思として記録し留まる
+     *   2. その意思がある間は飛ばない（タスクスイッチャーからの復帰を含む）
+     *   3. それ以外は飛ぶ。ランチャー起動は毎回、内部遷移は往復防止のため一度きり
      */
     private fun maybeJumpToTerminal(fromIntent: Intent) {
-        if (fromIntent.getBooleanExtra(EXTRA_SHOW_MENU, false)) return
-        if (jumpedToTerminal) return
+        // ターミナルから「戻る」で来たとき。ユーザーはこの画面を見に来たので、
+        // 以後この画面にいる間は自動遷移しない（飛ばすとメニューに戻れなくなる）。
+        if (fromIntent.getBooleanExtra(EXTRA_SHOW_MENU, false)) {
+            userWantsMenu = true
+            return
+        }
+        // 明示的にメニューを開いている間は飛ばない。
+        // この意思は「戻る」でメニューへ来てから、メニューを閉じる（この Activity が
+        // 終わる）まで続く。アプリを離れて戻っただけでは解除しない。
+        if (userWantsMenu) return
+        // 同じインスタンスで何度も飛ばない（内部遷移からの復帰での往復を防ぐ）。
+        if (hasBeenShown && jumpedToTerminal) return
         val active = EmbeddedRuntimeManager.activeContainer(this) ?: return
         jumpedToTerminal = true
         startActivity(
