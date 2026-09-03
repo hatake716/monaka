@@ -71,10 +71,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         private const val HEADER_HEIGHT_DP = 34
         private const val HEADER_HEIGHT_LAND_DP = 32
 
-        // 補助キーの寸法。縦画面は 7 キー × 2 段、横画面は 14 キーを 1 段に並べる。
+        // 補助キーの寸法。全キーを常に 1 段に並べ、幅に収まらなければ横スクロールさせる。
         private const val KEY_HEIGHT_DP = 44
         private const val KEY_HEIGHT_LAND_DP = 36
-        private const val KEY_WIDTH_DP = 74
+        // 横スクロール時の 1 キーの幅。画面幅 411dp の端末で一度に約 7 キーが見え、
+        // かつラベルを 12sp のまま表示できる大きさ。
+        private const val KEY_WIDTH_DP = 52
+        /** 横スクロール時のラベル文字サイズ(sp)。 */
+        private const val KEY_TEXT_SP = 12f
+        /** Button 既定スタイルが持つ字間（em 単位の概算）。幅の見積りに足す。 */
+        private const val BUTTON_LETTER_SPACING_EM = 0.09f
 
         // 等分割時の文字サイズ算出用。最長ラベルは "ENTER"/"PGUP" などの 5 文字、
         // sans-serif の 1 文字幅はフォントサイズのおよそ 0.62 倍。
@@ -848,7 +854,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         showComposerKeyboard()
     }
 
-    /** 補助キーの並び。前半 7 つが縦画面の 1 段目、後半 7 つが 2 段目になる。 */
+    /** 補助キーの並び。すべて 1 行に並べる（幅に収まらない分は横スクロール）。 */
     private fun extraKeySpecs(): List<KeySpec> = listOf(
         KeySpec("ESC", action = { send("\u001b") }),
         KeySpec("CTRL", modifier = ModifierKey.CTRL),
@@ -869,10 +875,10 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     /**
      * 補助キーバーを組む。
      *
-     * 横画面では画面高が乏しく、2 段だとターミナルの表示行数を大きく削るため、
-     * 14 キーすべてを 1 段に並べる。横幅は十分にあるので、固定幅ではなく
-     * weight で等分割して画面幅ちょうどに収める（横スクロール不要）。
-     * 縦画面はこれまでどおり 7 キー × 2 段。
+     * 2 段にするとターミナルの表示行数をその分だけ削るため、全キーを常に 1 段へ並べる。
+     * 横幅に全キーが収まるなら weight で等分割して画面幅ちょうどに収め（横画面。
+     * 全キーが一望でき、スクロール不要）、収まらないなら固定幅で並べて横スクロールで
+     * 選ばせる（縦画面）。
      */
     private fun buildExtraKeys(): View {
         val specs = extraKeySpecs()
@@ -880,32 +886,34 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             if (landscape) setPadding(dp(2), dp(2), dp(2), dp(2))
-            else setPadding(dp(4), dp(4), dp(4), dp(6))
+            else setPadding(dp(4), dp(3), dp(4), dp(4))
             setBackgroundColor(Color.rgb(239, 237, 230))
         }
 
-        if (landscape && canStretchAllKeys(specs.size)) {
-            outer.addView(keyRow(specs, stretch = true))
-        } else {
-            outer.addView(keyRow(specs.take(7)))
-            outer.addView(keyRow(specs.drop(7)))
-        }
+        // 常に 1 行。幅に全キーが収まるなら等分割して一望できるようにし、
+        // 収まらないなら固定幅で並べて横スクロールで選ばせる。
+        outer.addView(keyRow(specs, stretch = canStretchAllKeys(specs.size)))
         return outer
     }
 
     /**
-     * 全キーを 1 段に等分割しても、ラベルが省略されずに収まるか。
+     * 全キーを画面幅に等分割しても、ラベルが省略されずに収まるか。
      *
-     * 横画面でも分割画面などで幅が半分になることがあり、そこまで詰めると
-     * 「ENTER」「PGUP」が見切れる。読めなくなるくらいなら 2 段 + 横スクロールの
-     * 方がましなので、最小文字サイズで収まらない幅では等分割をやめる。
+     * 収まるなら等分割して全キーを一望できるようにする（主に横画面）。
+     * 縦画面や分割画面では 1 キーが狭くなりすぎて「ENTER」「PGUP」が
+     * 見切れるので、その場合は等分割せず固定幅 + 横スクロールにする。
      */
     private fun canStretchAllKeys(keyCount: Int): Boolean =
         perKeyWidthDp(keyCount) >= MIN_KEY_TEXT_SP * KEY_LABEL_CHARS * KEY_LABEL_WIDTH_RATIO
 
-    /** 等分割したときの 1 キーあたりの幅(dp)。 */
-    private fun perKeyWidthDp(keyCount: Int): Float =
-        (activeConfig().screenWidthDp.toFloat() - 4f) / keyCount - 2f
+    /**
+     * 等分割したときの 1 キーあたりの幅(dp)。
+     * バーの左右パディング（[buildExtraKeys] と対応）とキー間の余白を差し引く。
+     */
+    private fun perKeyWidthDp(keyCount: Int): Float {
+        val horizontalPadding = if (isLandscape()) 4f else 8f
+        return (activeConfig().screenWidthDp.toFloat() - horizontalPadding) / keyCount - 2f
+    }
 
     private enum class ModifierKey { CTRL, ALT, SHIFT }
 
@@ -916,10 +924,10 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     )
 
     /**
-     * 補助キーの 1 段を組む。
+     * 補助キーの行を組む。
      *
      * [stretch] が true なら各キーを weight で等分割し、行全体を画面幅に収める
-     * （横画面用。全キーが一望でき、横スクロールが要らない）。
+     * （全キーが一望でき、横スクロールが要らない）。
      * false なら固定幅で並べ、入りきらない分は横スクロールで見せる。
      */
     private fun keyRow(specs: List<KeySpec>, stretch: Boolean = false): View {
@@ -934,7 +942,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 isAllCaps = false
                 // 等分割時は 1 キーあたりの幅が画面幅に依存するので、幅から
                 // 「ENTER」「PGUP」等の 5 文字が省略されない大きさを求める。
-                textSize = if (stretch) stretchedKeyTextSize(specs.size) else 12f
+                textSize = if (stretch) stretchedKeyTextSize(specs.size) else KEY_TEXT_SP
                 setTextColor(terminalText)
                 setBackgroundColor(Color.rgb(255, 255, 255))
                 // 既定の最小サイズを外し、与えた寸法どおりに収まるようにする。
@@ -955,7 +963,8 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             val params = if (stretch) {
                 LinearLayout.LayoutParams(0, keyHeight, 1f).apply { marginEnd = dp(2) }
             } else {
-                LinearLayout.LayoutParams(dp(KEY_WIDTH_DP), keyHeight).apply { marginEnd = dp(4) }
+                LinearLayout.LayoutParams(scrollingKeyWidth(specs), keyHeight)
+                    .apply { marginEnd = dp(4) }
             }
             row.addView(button, params)
         }
@@ -965,6 +974,32 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             isHorizontalScrollBarEnabled = false
             addView(row)
         }
+    }
+
+    /**
+     * 横スクロール時の 1 キーの幅（px）。
+     *
+     * 既定は [KEY_WIDTH_DP] だが、ユーザーが端末のフォントサイズを大きくしている場合、
+     * ラベルは sp 指定なので大きくなる一方、幅が dp 固定のままだと「ENTER」が
+     * 「ENTE…」に省略されてしまう。実際に描画されるラベル幅を測り、収まらない
+     * ときだけ広げる。
+     */
+    private fun scrollingKeyWidth(specs: List<KeySpec>): Int {
+        val base = dp(KEY_WIDTH_DP)
+        val needed = runCatching {
+            val paint = android.graphics.Paint().apply {
+                textSize = android.util.TypedValue.applyDimension(
+                    android.util.TypedValue.COMPLEX_UNIT_SP,
+                    KEY_TEXT_SP,
+                    resources.displayMetrics
+                )
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            val widest = specs.maxOf { paint.measureText(it.label) }
+            // Button 既定のスタイルは字間(letterSpacing)を持つため、その分を見込む。
+            (widest * (1f + BUTTON_LETTER_SPACING_EM)).toInt() + dp(8)
+        }.getOrDefault(0)
+        return maxOf(base, needed)
     }
 
     /**

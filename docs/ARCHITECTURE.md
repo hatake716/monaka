@@ -62,16 +62,18 @@ links to the system's battery-optimization exclusion for the app.
 Screen space spent on chrome is screen space taken from the terminal, and in
 landscape the height budget is small. The terminal screen therefore adapts:
 
-- **Extra keys collapse to one row.** Portrait keeps 7 keys × 2 rows at a fixed
-  width (horizontally scrollable). Landscape has the width to spare, so all 14
-  keys are laid out in a single row using layout weights — every key visible, no
-  scrolling. If the width cannot fit readable labels (split-screen, for
-  instance), it falls back to the two-row scrolling form.
+- **Extra keys always occupy a single row.** A second row costs terminal lines,
+  so all 14 keys share one row. Where the width fits them (landscape), layout
+  weights spread them across the screen — every key visible, no scrolling.
+  Where it does not (portrait), they keep a fixed width and the row scrolls
+  horizontally. The fixed width grows with the user's font-scale setting so
+  labels are never truncated.
 - **The header is slimmed** from the platform `Button` minimum (48dp plus
   padding) to a 32–34dp band, with the default minimum size and padding cleared.
 
-Together these return roughly 92dp — about 22% of the height on a 923 × 411dp
-landscape screen, or ~5 text rows at a 15dp font.
+Together these return roughly 92dp in landscape — about 22% of the height on a
+923 × 411dp screen, or ~5 text rows at a 15dp font. Portrait gains ~47dp
+(~2.6 rows) from the single-row key bar alone.
 
 Because the manifest declares `orientation|screenSize` in `configChanges`, the
 Activity is not recreated on rotation; `onConfigurationChanged` swaps just the
