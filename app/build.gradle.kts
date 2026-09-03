@@ -125,8 +125,8 @@ android {
         //   - targetSdk 29 は W^X 制約(targetSdk 29 で導入)手前のため、PRoot を
         //     nativeLibraryDir から実行する既存構成もそのまま動作する。
         targetSdk = 29
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.2.1"
 
         // arm64-v8a 専用ランタイム。AAB の ABI 分割で余計な split を作らないよう明示。
         ndk {

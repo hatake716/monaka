@@ -3,7 +3,23 @@
 monaka（全ファイルアクセス版 / Claude Code 自動導入）は
 [CCFA](https://github.com/hatake716/CCFA) の派生で、**sideload 専用**（Google Play 非公開）です。
 
-## v1.2.0（最新）
+## v1.2.1（最新）
+
+- Branch: `monaka`
+- Version: `1.2.1`（`versionCode` 5）
+- APK: `monaka-v1.2.1-debug.apk`
+
+### v1.2.0 からの変更点
+
+- 補助キーの並びを `… TAB HOME END PGUP ← ↑ ↓ → PGDN BKSP ENTER` に変更。
+  `↑` が `TAB` の隣にあり他の矢印と離れていたのを、`←` と `↓` の間へ移して
+  矢印 4 つを隣り合わせにした。
+- メイン画面のキー配列の案内表示を、実際の並びに合わせて更新（1 段化した
+  v1.2.0 の時点で旧配列のまま残っていた）。
+
+---
+
+## v1.2.0
 
 - Branch: `monaka`
 - Version: `1.2.0`（`versionCode` 4）

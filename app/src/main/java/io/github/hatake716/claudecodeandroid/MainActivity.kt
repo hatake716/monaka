@@ -318,7 +318,9 @@ class MainActivity : Activity() {
                 "止められることがあります。"
         ))
         section.addView(TextView(this).apply {
-            text = "ESC   CTRL   ALT   TAB   ↑   HOME   END\nPGUP   ←   ↓   →   PGDN   BKSP   ENTER"
+            // ターミナル下部の補助キーバーの並び（EmbeddedTerminalActivity.extraKeySpecs）。
+            // 実際は 1 段だが、このカードには収まらないので折り返して見せる。
+            text = "ESC   CTRL   ALT   TAB   HOME   END   PGUP\n←   ↑   ↓   →   PGDN   BKSP   ENTER"
             textSize = 12.5f
             gravity = Gravity.CENTER
             setTextColor(Color.rgb(38, 36, 32))

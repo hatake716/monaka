@@ -860,11 +860,12 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         KeySpec("CTRL", modifier = ModifierKey.CTRL),
         KeySpec("ALT", modifier = ModifierKey.ALT),
         KeySpec("TAB", action = { send("\t") }),
-        KeySpec("↑", action = { send("\u001b[A") }),
         KeySpec("HOME", action = { send("\u001b[H") }),
         KeySpec("END", action = { send("\u001b[F") }),
         KeySpec("PGUP", action = { send("\u001b[5~") }),
+        // 矢印は ← ↑ ↓ → の順で隣り合わせに置く。
         KeySpec("←", action = { send("\u001b[D") }),
+        KeySpec("↑", action = { send("\u001b[A") }),
         KeySpec("↓", action = { send("\u001b[B") }),
         KeySpec("→", action = { send("\u001b[C") }),
         KeySpec("PGDN", action = { send("\u001b[6~") }),
