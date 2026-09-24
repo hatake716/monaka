@@ -13,8 +13,8 @@ CCFA is an independent project. It is not endorsed by, affiliated with, or spons
 CCFA embeds the Android/Bionic PRoot binary distributed by the Termux stable package repository.
 
 - Component: PRoot
-- Embedded version: `5.1.107.92`
-- Source: `https://github.com/termux/proot/tree/v5.1.107.92`
+- Embedded version: `5.1.107.94`
+- Source: `https://github.com/termux/proot/tree/v5.1.107.94`
 - Termux package recipe identifies the package as `GPL-2.0`.
 - PRoot source-file notices state GNU GPL version 2 or, at the recipient's option, any later version.
 

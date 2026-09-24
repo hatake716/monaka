@@ -5,7 +5,7 @@ CCFA distribution APKs embed the Android/Bionic PRoot runtime from the Termux st
 Current embedded version:
 
 ```text
-proot 5.1.107.92
+proot 5.1.107.94
 ```
 
 The Termux package recipe identifies PRoot as GPL-2.0, while the PRoot source-file notices permit redistribution under GPL version 2 or, at the recipient's option, any later version.
@@ -15,7 +15,7 @@ The Termux package recipe identifies PRoot as GPL-2.0, while the PRoot source-fi
 CCFA does not rely only on an external URL for GPL source availability. A distribution build embeds the exact verified source archive inside the APK:
 
 ```text
-assets/legal/sources/proot-v5.1.107.92.zip
+assets/legal/sources/proot-v5.1.107.94.zip
 ```
 
 It also embeds:

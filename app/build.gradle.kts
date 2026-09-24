@@ -83,7 +83,7 @@ val verifyDistributionLegal by tasks.registering {
         "licenses/COMMONS-CODEC-NOTICE.txt",
         "licenses/COMMONS-IO-NOTICE.txt",
         "licenses/COMMONS-LANG3-NOTICE.txt",
-        "sources/proot-v5.1.107.92.zip",
+        "sources/proot-v5.1.107.94.zip",
         "sources/libandroid-shmem-v0.7.tar.gz.source",
         "sources/talloc-2.4.3.tar.gz.source",
         "sources/ccfa-prepare-termux-android-proot.sh",

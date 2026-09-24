@@ -9,7 +9,7 @@ RECIPES="$SOURCES/termux-build-recipes"
 TERMUX_PACKAGES_COMMIT="08b49b3ce00b1e14a3a0365200f30e50f8dfafe1"
 # scripts/prepare-termux-android-proot.sh の PROOT_VERSION と必ず一致させること
 # （同梱バイナリと対応ソースの GPL 整合性）。
-PROOT_SOURCE_VERSION="5.1.107.92"
+PROOT_SOURCE_VERSION="5.1.107.94"
 mkdir -p "$LICENSES" "$SOURCES" "$RECIPES"
 
 # 過去バージョンの対応ソース zip が残っていると、ローカルの増分ビルドで
@@ -85,7 +85,7 @@ fetch "https://raw.githubusercontent.com/apache/commons-io/rel/commons-io-2.16.1
 fetch "https://raw.githubusercontent.com/apache/commons-lang/rel/commons-lang-3.16.0/NOTICE.txt" "$LICENSES/COMMONS-LANG3-NOTICE.txt"
 
 fetch "https://github.com/termux/proot/archive/v${PROOT_SOURCE_VERSION}.zip" "$SOURCES/proot-v${PROOT_SOURCE_VERSION}.zip"
-verify_sha256 "29385d1ddb619a9c4449ab512bfd55032034b22f724ddf98fc95ff300ea32135" "$SOURCES/proot-v${PROOT_SOURCE_VERSION}.zip"
+verify_sha256 "3fa4c57253463c3d595984d997b407b0b6bdb46d290b2a111959a2efd609e839" "$SOURCES/proot-v${PROOT_SOURCE_VERSION}.zip"
 
 fetch "https://github.com/termux/libandroid-shmem/archive/refs/tags/v0.7.tar.gz" "$SOURCES/libandroid-shmem-v0.7.tar.gz.source"
 verify_sha256 "1e5ff8459bc0a8c229dd8a94b27d119987e09ef3414331c2b5ebfff20b98e867" "$SOURCES/libandroid-shmem-v0.7.tar.gz.source"

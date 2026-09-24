@@ -22,7 +22,7 @@ INDEX_BASE="$TERMUX_REPO/dists/stable/main/binary-aarch64/Packages"
 #   - .github/workflows/android-ci.yml / publish-release.yml （APK 検証 grep）
 #   - THIRD_PARTY_NOTICES.md / docs/PROOT-SOURCE-OFFER.md
 # -----------------------------------------------------------------------------
-PROOT_VERSION="5.1.107.92"
+PROOT_VERSION="5.1.107.94"
 LIBANDROID_SHMEM_VERSION="0.7"
 LIBTALLOC_VERSION="2.4.3"
 

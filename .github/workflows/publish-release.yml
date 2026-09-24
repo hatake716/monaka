@@ -95,7 +95,7 @@ jobs:
           unzip -l "$SRC" | grep 'assets/legal/NOTICE.txt'
           unzip -l "$SRC" | grep 'assets/legal/licenses/GPL-2.0.txt'
           unzip -l "$SRC" | grep 'assets/legal/licenses/LGPL-3.0.txt'
-          unzip -l "$SRC" | grep 'assets/legal/sources/proot-v5.1.107.92.zip'
+          unzip -l "$SRC" | grep 'assets/legal/sources/proot-v5.1.107.94.zip'
           cp "$SRC" "$OUT"
           sha256sum "$OUT" | tee "$OUT.sha256"
           SHA="$(cut -d' ' -f1 < "$OUT.sha256")"
