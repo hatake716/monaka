@@ -6,7 +6,7 @@
 
 [CCFA](https://github.com/hatake716/CCFA) の派生。Google Play 版CCFAが Play ポリシー対応のために制限していた「全ファイルアクセス」を復活させ、共有ストレージ全体を Linux コンテナへ**リアルタイムに**バインドマウントし、**Claude Code をワンタップで自動インストール**できる **sideload 専用**ビルドです。
 
-![Version](https://img.shields.io/badge/version-v1.2.1-C15F3C)
+![Version](https://img.shields.io/badge/version-v1.3.0-C15F3C)
 &nbsp;![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84)
 &nbsp;![ABI](https://img.shields.io/badge/ABI-arm64--v8a-555)
 &nbsp;![Distribution](https://img.shields.io/badge/配布-sideload%20専用-C15F3C)
@@ -20,7 +20,7 @@
 
 ## 名前とデザイン
 
-**monaka（最中）** は、Claude Code をスマホ上の Linux（餡）で包む和菓子のようなアプリ、という見立てです。UI は Claude デスクトップアプリのライトモード風に、**温かいオフホワイト地（#F5F4EF）にクレイ／小豆色のアクセント（#C15F3C）**を組み合わせた配色で、アイコンは最中種（皮）と餡をモチーフにしています。
+**monaka（最中）** は、Claude Code をスマホ上の Linux（餡）で包む和菓子のようなアプリ、という見立てです。UI は **iOS 27 風**に、**温かいオフホワイト地（#F2F1EC）にクレイ／小豆色のアクセント（#C15F3C）**を組み合わせた配色で、アイコンは最中種（皮）と餡をモチーフにしています。
 
 ---
 
@@ -39,7 +39,7 @@ monaka は CCFA のアーキテクチャ（アプリ内蔵 PRoot + Ubuntu rootfs
 | バックグラウンド実行 | 画面を離れると停止 | **フォアグラウンドサービスで継続**（通知から復帰・停止） |
 | ターミナル履歴 | なし | **保存・再開・名前付け**に対応 |
 | 補助キー | 7キー×2段 | **14キーを1段**（横スクロール／横画面は等分割）+ 薄型バー |
-| UI 配色 | 暖色ライト（クリーム × テラコッタ） | **温かいオフホワイト × クレイ／小豆色**（#F5F4EF × #C15F3C） |
+| UI | 暖色ライト（クリーム × テラコッタ） | **iOS 27 風**（連続曲率の角丸・面の拡散光・温かいオフホワイト × 小豆色） |
 | applicationId | `io.github.hatake716.ccfa` | `io.github.hatake716.monaka`（**共存可能**） |
 
 ---

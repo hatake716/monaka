@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -28,15 +27,15 @@ import android.widget.Toast
  */
 class StorageSettingsActivity : Activity() {
     // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
-    private val page = Color.rgb(245, 244, 239)
-    private val card = Color.rgb(255, 255, 255)
-    private val text = Color.rgb(38, 36, 32)
-    private val muted = Color.rgb(122, 115, 104)
-    private val border = Color.rgb(228, 224, 214)
-    private val soft = Color.rgb(238, 236, 229)
-    private val accent = Color.rgb(193, 95, 60)
-    private val accentDark = Color.rgb(167, 78, 48)
-    private val danger = Color.rgb(180, 72, 54)
+    private val page = MonakaTheme.page
+    private val card = MonakaTheme.card
+    private val text = MonakaTheme.text
+    private val muted = MonakaTheme.muted
+    private val border = MonakaTheme.border
+    private val soft = MonakaTheme.soft
+    private val accent = MonakaTheme.accent
+    private val accentDark = MonakaTheme.accentDark
+    private val danger = MonakaTheme.danger
 
     private lateinit var statusView: TextView
     private lateinit var toggleButton: Button
@@ -88,7 +87,7 @@ class StorageSettingsActivity : Activity() {
         val statusCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = rounded(card, border, 16)
+            background = rounded(card, border, MonakaTheme.RADIUS_CARD_DP.toInt())
         }
         statusView = TextView(this).apply {
             textSize = 15.5f
@@ -143,14 +142,25 @@ class StorageSettingsActivity : Activity() {
             statusView.text = "✓ 全ファイルアクセス: 許可済み"
             statusView.setTextColor(accent)
             toggleButton.text = "権限設定を開く（取り消す場合）"
-            toggleButton.background = rounded(soft, border, 12)
+            // 状態で色は変えるが、押せる面であることは変えない（pressable のまま）。
+            toggleButton.background = pressable(
+                fill = soft,
+                stroke = border,
+                radius = MonakaTheme.RADIUS_CONTROL_DP,
+                ripple = MonakaTheme.rippleOnLight,
+            )
             toggleButton.setTextColor(text)
         } else {
             statusView.text = "× 全ファイルアクセス: 未許可"
             statusView.setTextColor(danger)
             toggleButton.text = "全ファイルアクセスを許可する"
-            toggleButton.background = rounded(accent, accentDark, 12)
-            toggleButton.setTextColor(Color.WHITE)
+            toggleButton.background = pressable(
+                fill = accent,
+                stroke = accentDark,
+                radius = MonakaTheme.RADIUS_CONTROL_DP,
+                ripple = MonakaTheme.rippleOnAccent,
+            )
+            toggleButton.setTextColor(MonakaTheme.onAccent)
         }
     }
 
@@ -205,24 +215,46 @@ class StorageSettingsActivity : Activity() {
         textSize = 12.5f
         setTextColor(this@StorageSettingsActivity.text)
         setPadding(dp(12), dp(9), dp(12), dp(9))
-        background = rounded(soft, border, 10)
+        background = rounded(soft, border, MonakaTheme.RADIUS_CHIP_DP.toInt())
     }
 
     private fun primary(value: String, click: () -> Unit) = Button(this).apply {
         text = value
         isAllCaps = false
-        setTextColor(Color.WHITE)
+        textSize = 15f
+        setTextColor(MonakaTheme.onAccent)
         setTypeface(typeface, Typeface.BOLD)
-        background = rounded(accent, accentDark, 12)
+        letterSpacing = -0.01f
+        minHeight = dp(48)
+        minimumHeight = dp(48)
+        background = pressable(
+            fill = accent,
+            stroke = accentDark,
+            radius = MonakaTheme.RADIUS_CONTROL_DP,
+            ripple = MonakaTheme.rippleOnAccent,
+        )
         setOnClickListener { click() }
     }
 
-    private fun rounded(fill: Int, stroke: Int, radius: Int) = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        setColor(fill)
-        setStroke(dp(1), stroke)
-        cornerRadius = dp(radius).toFloat()
-    }
+    /** iOS 27 風の面（連続曲率 + 内側の拡散光 + 極細の縁）。 */
+    private fun rounded(fill: Int, stroke: Int, radius: Int) = IosSurface.SurfaceDrawable(
+        fill = fill,
+        radiusPx = dpF(radius.toFloat()),
+        strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+        strokeColor = stroke,
+    )
+
+    /** 押せる面（押下で淡く陰る/光る）。 */
+    private fun pressable(fill: Int, stroke: Int, radius: Float, ripple: Int) =
+        IosSurface.pressable(
+            fill = fill,
+            radiusPx = dpF(radius),
+            strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+            strokeColor = stroke,
+            rippleColor = ripple,
+        )
+
+    private fun dpF(value: Float) = value * resources.displayMetrics.density
 
     private fun top(value: Int) = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,

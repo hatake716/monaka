@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -27,14 +26,14 @@ class ContainerManagerActivity : Activity() {
     }
 
     // monaka配色（ダーク地の焦げ茶 × 小豆色アクセント）
-    private val page = Color.rgb(245, 244, 239)
-    private val card = Color.rgb(255, 255, 255)
-    private val text = Color.rgb(38, 36, 32)
-    private val muted = Color.rgb(122, 115, 104)
-    private val border = Color.rgb(228, 224, 214)
-    private val soft = Color.rgb(238, 236, 229)
-    private val accent = Color.rgb(193, 95, 60)
-    private val danger = Color.rgb(180, 72, 54)
+    private val page = MonakaTheme.page
+    private val card = MonakaTheme.card
+    private val text = MonakaTheme.text
+    private val muted = MonakaTheme.muted
+    private val border = MonakaTheme.border
+    private val soft = MonakaTheme.soft
+    private val accent = MonakaTheme.accent
+    private val danger = MonakaTheme.danger
 
     private lateinit var activeText: TextView
     private lateinit var listHost: LinearLayout
@@ -105,7 +104,7 @@ class ContainerManagerActivity : Activity() {
             textSize = 13f
             setTextColor(muted)
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = rounded(soft, border, 12)
+            background = rounded(soft, border, MonakaTheme.RADIUS_CHIP_DP.toInt())
             text = "ランタイムを確認しています…"
         }
         content.addView(operationText, top(dp(8)))
@@ -319,7 +318,7 @@ class ContainerManagerActivity : Activity() {
     private fun section(title: String, subtitle: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = rounded(card, border, 18)
+        background = rounded(card, border, MonakaTheme.RADIUS_CARD_DP.toInt())
         addView(TextView(this@ContainerManagerActivity).apply {
             text = title
             textSize = 20f
@@ -345,7 +344,7 @@ class ContainerManagerActivity : Activity() {
         textSize = 13.5f
         setTextColor(this@ContainerManagerActivity.text)
         setPadding(dp(12), dp(10), dp(12), dp(10))
-        background = rounded(soft, border, 10)
+        background = rounded(soft, border, MonakaTheme.RADIUS_CHIP_DP.toInt())
     }
 
     private fun primary(value: String, click: () -> Unit) = styled(value, accent, Color.WHITE, click)
@@ -356,10 +355,19 @@ class ContainerManagerActivity : Activity() {
     private fun styled(value: String, bg: Int, fg: Int, click: () -> Unit) = Button(this).apply {
         text = value
         isAllCaps = false
-        textSize = 13.5f
+        textSize = 14f
         setTextColor(fg)
         setTypeface(typeface, Typeface.BOLD)
-        background = rounded(bg, border, 12)
+        letterSpacing = -0.01f
+        minHeight = dp(46)
+        minimumHeight = dp(46)
+        val onAccentFace = bg == accent
+        background = pressable(
+            fill = bg,
+            stroke = if (onAccentFace) MonakaTheme.accentDark else border,
+            radius = MonakaTheme.RADIUS_CONTROL_DP,
+            ripple = if (onAccentFace) MonakaTheme.rippleOnAccent else MonakaTheme.rippleOnLight,
+        )
         setOnClickListener { click() }
     }
 
@@ -383,12 +391,25 @@ class ContainerManagerActivity : Activity() {
         parent.addView(row, top(dp(8)))
     }
 
-    private fun rounded(fill: Int, stroke: Int, radius: Int) = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        setColor(fill)
-        setStroke(dp(1), stroke)
-        cornerRadius = dp(radius).toFloat()
-    }
+    /** iOS 27 風の面（連続曲率 + 内側の拡散光 + 極細の縁）。 */
+    private fun rounded(fill: Int, stroke: Int, radius: Int) = IosSurface.SurfaceDrawable(
+        fill = fill,
+        radiusPx = dpF(radius.toFloat()),
+        strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+        strokeColor = stroke,
+    )
+
+    /** 押せる面（押下で淡く陰る/光る）。 */
+    private fun pressable(fill: Int, stroke: Int, radius: Float, ripple: Int) =
+        IosSurface.pressable(
+            fill = fill,
+            radiusPx = dpF(radius),
+            strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+            strokeColor = stroke,
+            rippleColor = ripple,
+        )
+
+    private fun dpF(value: Float) = value * resources.displayMetrics.density
 
     private fun top(value: Int) = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,

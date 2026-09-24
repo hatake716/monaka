@@ -3,5 +3,8 @@
     <!-- monaka: アイコン背景は白。前景は抽象的でかわいい最中(パステル)。 -->
     <color name="ic_launcher_background">#FFFFFF</color>
     <!-- アプリ画面のウィンドウ背景はライトモードの温かいオフホワイト(paper)。 -->
-    <color name="window_background">#F5F4EF</color>
+    <color name="window_background">#F2F1EC</color>
+    <!-- MonakaTheme.accent / text と対応（テーマからも参照するため定義する）。 -->
+    <color name="accent">#C15F3C</color>
+    <color name="label">#1C1B18</color>
 </resources>

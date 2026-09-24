@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 補助キーの面（通常/修飾キーON）を View の tag に持たせるためのキー。 -->
+    <item name="monaka_key_idle_bg" type="id" />
+    <item name="monaka_key_active_bg" type="id" />
+</resources>

@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -175,14 +174,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     private var historyListHost: LinearLayout? = null
 
     // monaka配色（Claude ライトモード風。温かいオフホワイト地 × クレイ/小豆アクセント）
-    private val pageColor = Color.rgb(245, 244, 239)
-    private val cardColor = Color.rgb(255, 255, 255)
-    private val borderColor = Color.rgb(228, 224, 214)
-    private val textColor = Color.rgb(38, 36, 32)
-    private val mutedColor = Color.rgb(122, 115, 104)
-    private val terminalColor = Color.rgb(251, 250, 247)
-    private val terminalText = Color.rgb(38, 36, 32)
-    private val accent = Color.rgb(193, 95, 60)
+    // 配色は MonakaTheme に集約（iOS 27 風）。
+    private val pageColor = MonakaTheme.page
+    private val cardColor = MonakaTheme.card
+    private val borderColor = MonakaTheme.border
+    private val textColor = MonakaTheme.text
+    private val mutedColor = MonakaTheme.muted
+    private val terminalColor = MonakaTheme.terminalBg
+    private val terminalText = MonakaTheme.terminalText
+    private val accent = MonakaTheme.accent
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -567,7 +567,13 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = rounded(cardColor, borderColor, 12)
+                background = IosSurface.pressable(
+                    fill = cardColor,
+                    radiusPx = dpF(MonakaTheme.RADIUS_CONTROL_DP),
+                    strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+                    strokeColor = borderColor,
+                    rippleColor = MonakaTheme.rippleOnLight,
+                )
                 setOnClickListener { onHistoryPicked(r) }
                 setOnLongClickListener { onHistoryLongPressed(r); true }
                 isClickable = true
@@ -714,15 +720,20 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         background = borderlessRipple()
     }
 
-    /** 枠のない押下フィードバック(ripple)。取得できない端末では背景なしにする。 */
+    /**
+     * 枠のない押下フィードバック。
+     *
+     * iOS のツールバーのボタンは、押すとラベルの周りが淡く陰る。Android 既定の
+     * borderless ripple は円形に広がって角丸の面から外れるため、連続曲率の
+     * 小さな面に収めた ripple を自前で作る。
+     */
     private fun borderlessRipple(): android.graphics.drawable.Drawable? = runCatching {
-        val attrs = intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
-        val typed = theme.obtainStyledAttributes(attrs)
-        try {
-            typed.getDrawable(0)
-        } finally {
-            typed.recycle()
-        }
+        IosSurface.pressable(
+            fill = android.graphics.Color.TRANSPARENT,
+            radiusPx = dpF(MonakaTheme.RADIUS_CHIP_DP),
+            rippleColor = MonakaTheme.rippleOnLight,
+            sheen = false,
+        )
     }.getOrNull()
 
     /**
@@ -770,15 +781,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         val composer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.BOTTOM
-            setPadding(dp(12), dp(8), dp(8), dp(8))
-            background = rounded(cardColor, borderColor, 20)
+            setPadding(dp(14), dp(8), dp(8), dp(8))
+            // iOS のメッセージ入力欄に倣い、角丸を大きく取って丸みを強調する。
+            background = rounded(cardColor, borderColor, 21)
         }
 
         imeInput = EditText(this).apply {
             hint = "メッセージ / コマンドを入力…"
             textSize = 16f
             setTextColor(textColor)
-            setHintTextColor(Color.rgb(150, 143, 132))
+            setHintTextColor(MonakaTheme.terminalHint)
             background = null
             gravity = Gravity.TOP or Gravity.START
             minLines = 1
@@ -811,11 +823,16 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
 
         val sendButton = TextView(this).apply {
             text = "↑"
-            textSize = 22f
+            textSize = 21f
             gravity = Gravity.CENTER
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            background = rounded(accent, accent, 16)
+            // iOS の送信ボタンは完全な円。連続曲率のパスは半径が短辺で丸められて
+            // 真円にならないため、円は専用の描画を使う。
+            background = IosSurface.pressableCircle(
+                fill = accent,
+                rippleColor = MonakaTheme.rippleOnAccent,
+            )
             setOnClickListener { sendComposerMessage() }
             contentDescription = "送信"
         }
@@ -888,7 +905,7 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
             orientation = LinearLayout.VERTICAL
             if (landscape) setPadding(dp(2), dp(2), dp(2), dp(2))
             else setPadding(dp(4), dp(3), dp(4), dp(4))
-            setBackgroundColor(Color.rgb(239, 237, 230))
+            setBackgroundColor(MonakaTheme.keyBar)
         }
 
         // 常に 1 行。幅に全キーが収まるなら等分割して一望できるようにし、
@@ -944,8 +961,19 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
                 // 等分割時は 1 キーあたりの幅が画面幅に依存するので、幅から
                 // 「ENTER」「PGUP」等の 5 文字が省略されない大きさを求める。
                 textSize = if (stretch) stretchedKeyTextSize(specs.size) else KEY_TEXT_SP
-                setTextColor(terminalText)
-                setBackgroundColor(Color.rgb(255, 255, 255))
+                setTextColor(MonakaTheme.keyText)
+                // iOS のキーボードのキーに倣い、連続曲率の白い面にする。
+                // 押下は ripple で淡く陰らせる（iOS のキーのハイライトに相当）。
+                //
+                // CTRL/ALT は押すたびに ON/OFF が切り替わる。切り替えのたびに
+                // Drawable を作り直すと、実行中の ripple が破棄されて押下感が
+                // 途切れるうえ、タップのたびに確保が走る。2 枚を先に作って
+                // 差し替えるだけにする。
+                background = keyFaceDrawable(enabled = false)
+                if (spec.modifier != null) {
+                    setTag(R.id.monaka_key_active_bg, keyFaceDrawable(enabled = true))
+                    setTag(R.id.monaka_key_idle_bg, background)
+                }
                 // 既定の最小サイズを外し、与えた寸法どおりに収まるようにする。
                 minWidth = 0
                 minHeight = 0
@@ -1016,13 +1044,27 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
         return fit.coerceIn(MIN_KEY_TEXT_SP, MAX_KEY_TEXT_SP)
     }
 
+    /** 補助キーの面。[enabled] が true ならアクセント色（修飾キーが ON の状態）。 */
+    private fun keyFaceDrawable(enabled: Boolean) = IosSurface.pressable(
+        fill = if (enabled) accent else MonakaTheme.keyFace,
+        radiusPx = dpF(7f),
+        rippleColor = if (enabled) MonakaTheme.rippleOnAccent else MonakaTheme.rippleOnLight,
+        sheen = false,
+    )
+
     private fun toggleModifier(key: ModifierKey, button: Button) {
         val enabled = when (key) {
             ModifierKey.CTRL -> (!ctrlPressed).also { ctrlPressed = it }
             ModifierKey.ALT -> (!altPressed).also { altPressed = it }
             ModifierKey.SHIFT -> (!shiftPressed).also { shiftPressed = it }
         }
-        button.setBackgroundColor(if (enabled) accent else Color.rgb(255, 255, 255))
+        // setBackgroundColor だと連続曲率の面ごと置き換わって角が四角くなるため、
+        // キー生成時に作っておいた 2 枚を差し替える。文字色も面に合わせて反転させる。
+        val key = if (enabled) R.id.monaka_key_active_bg else R.id.monaka_key_idle_bg
+        (button.getTag(key) as? android.graphics.drawable.Drawable)?.let {
+            button.background = it
+        }
+        button.setTextColor(if (enabled) MonakaTheme.onAccent else MonakaTheme.keyText)
         terminalView.requestFocus()
     }
 
@@ -1427,12 +1469,15 @@ class EmbeddedTerminalActivity : Activity(), TerminalSessionClient, TerminalView
     }
     override fun logStackTrace(tag: String, e: Exception) { Log.e(tag, e.message, e) }
 
-    private fun rounded(fill: Int, stroke: Int, radiusDp: Int) = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        setColor(fill)
-        setStroke(dp(1), stroke)
-        cornerRadius = dp(radiusDp).toFloat()
-    }
+    /** iOS 27 風の面（連続曲率 + 内側の拡散光 + 極細の縁）。 */
+    private fun rounded(fill: Int, stroke: Int, radiusDp: Int) = IosSurface.SurfaceDrawable(
+        fill = fill,
+        radiusPx = dpF(radiusDp.toFloat()),
+        strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+        strokeColor = stroke,
+    )
+
+    private fun dpF(value: Float) = value * resources.displayMetrics.density
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 

@@ -3,7 +3,37 @@
 monaka（全ファイルアクセス版 / Claude Code 自動導入）は
 [CCFA](https://github.com/hatake716/CCFA) の派生で、**sideload 専用**（Google Play 非公開）です。
 
-## v1.2.1（最新）
+## v1.3.0（最新）
+
+- Branch: `monaka`
+- Version: `1.3.0`（`versionCode` 6）
+- APK: `monaka-v1.3.0-debug.apk`
+
+### v1.2.1 からの変更点
+
+**UI を iOS 27 風に刷新**
+
+- `IosSurface` を新設。iOS の**連続曲率（スクイークル）**の角丸を `Path` で描く
+  `Drawable` と、押下フィードバック付きの `pressable()` を提供する。
+  面は「塗り → 上端から消える拡散光 → 下端のごく淡い陰り → 極細の縁」の層で構成。
+- `MonakaTheme` を刷新。配色を iOS の階調（label / secondary / tertiary）へ整理し、
+  角丸・罫線・ripple 色の定数を追加（カード 22dp / ボタン 14dp / バッジ 11dp、
+  罫線は iOS のセパレータ相当の 0.66dp）。
+- 全 6 画面のローカル配色定義を `MonakaTheme` へ集約。ボタンは高さ 46〜48dp、
+  字間をわずかに詰め、押すと明るい面は陰り・アクセント面は光る。
+- ターミナルの入力欄は iMessage 風の丸み、送信ボタンは真円に。補助キーは
+  iOS のキーボードのキー風（連続曲率の白い面）。
+- ダイアログも角丸 22dp・アクセント色の操作文字に。
+
+**PRoot ランタイムの更新**
+
+- upstream の Termux が proot 5.1.107.94 へ進み、固定していた 5.1.107.92 と
+  食い違ってビルドが停止していたため、同梱バイナリと GPL 対応ソースを
+  5.1.107.94 へ揃えた（参照 9 箇所と SHA-256）。
+
+---
+
+## v1.2.1
 
 - Branch: `monaka`
 - Version: `1.2.1`（`versionCode` 5）

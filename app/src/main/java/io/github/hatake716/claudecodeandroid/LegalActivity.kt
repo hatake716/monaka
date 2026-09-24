@@ -16,9 +16,9 @@ import android.widget.Toast
 
 /** Displays legal notices and bundled license texts directly from APK assets. */
 class LegalActivity : Activity() {
-    private val page = Color.rgb(245, 244, 239)
-    private val text = Color.rgb(38, 36, 32)
-    private val muted = Color.rgb(122, 115, 104)
+    private val page = MonakaTheme.page
+    private val text = MonakaTheme.text
+    private val muted = MonakaTheme.muted
 
     private data class LegalDocument(val label: String, val assetPath: String)
 

@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
@@ -61,16 +60,17 @@ class MainActivity : Activity() {
 
     // monaka配色: 和菓子・最中(もなか)。焦げ茶のダーク地に小豆色(あずき)のアクセント。
     // page=焦げ茶 #1A1412 / accent=小豆 #9C4A3C / text=最中種の皮クリーム #EDE0D6。
-    private val page = Color.rgb(245, 244, 239)
-    private val card = Color.rgb(255, 255, 255)
-    private val text = Color.rgb(38, 36, 32)
-    private val muted = Color.rgb(122, 115, 104)
-    private val border = Color.rgb(228, 224, 214)
-    private val soft = Color.rgb(238, 236, 229)
-    private val accent = Color.rgb(193, 95, 60)
-    private val accentDark = Color.rgb(167, 78, 48)
-    private val danger = Color.rgb(180, 72, 54)
-    private val terminal = Color.rgb(251, 250, 247)
+    // 配色は MonakaTheme に集約（iOS 27 風）。
+    private val page = MonakaTheme.page
+    private val card = MonakaTheme.card
+    private val text = MonakaTheme.text
+    private val muted = MonakaTheme.muted
+    private val border = MonakaTheme.border
+    private val soft = MonakaTheme.soft
+    private val accent = MonakaTheme.accent
+    private val accentDark = MonakaTheme.accentDark
+    private val danger = MonakaTheme.danger
+    private val terminal = MonakaTheme.terminalBg
 
     private lateinit var setupProgress: ProgressBar
     private lateinit var setupOperationText: TextView
@@ -254,31 +254,34 @@ class MainActivity : Activity() {
     private fun buildView(): View {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(36))
+            setPadding(dp(18), dp(20), dp(18), dp(40))
             setBackgroundColor(page)
         }
 
+        // iOS の Large Title 相当。太く大きく、字間を詰める。
         content.addView(TextView(this).apply {
             text = "monaka"
-            textSize = 32f
+            textSize = 34f
             setTextColor(accent)
             setTypeface(typeface, Typeface.BOLD)
+            letterSpacing = -0.03f
         })
         content.addView(TextView(this).apply {
             text = "全ファイルアクセス · Claude Code 対応 Linux コンテナ"
-            textSize = 15f
+            textSize = 14.5f
             setTextColor(muted)
-            setPadding(0, dp(2), 0, dp(18))
+            setPadding(0, dp(3), 0, dp(20))
+            setLineSpacing(dpF(2f), 1f)
         })
 
         // 最上段はエージェントターミナル（最重要）。以降は初回セットアップ →
         // Linuxコンテナ → スマートフォンストレージ → Claude Code の順。
         content.addView(terminalCard())
-        content.addView(setupCard(), top(dp(14)))
-        content.addView(containerCard(), top(dp(14)))
-        content.addView(storageCard(), top(dp(14)))
-        content.addView(claudeCard(), top(dp(14)))
-        content.addView(legalCard(), top(dp(14)))
+        content.addView(setupCard(), top(dp(13)))
+        content.addView(containerCard(), top(dp(13)))
+        content.addView(storageCard(), top(dp(13)))
+        content.addView(claudeCard(), top(dp(13)))
+        content.addView(legalCard(), top(dp(13)))
 
         return ScrollView(this).apply {
             setBackgroundColor(page)
@@ -397,7 +400,7 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(this@MainActivity.text)
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = rounded(soft, border, 10)
+            background = rounded(soft, border, MonakaTheme.RADIUS_CHIP_DP.toInt())
         }
         section.addView(setupOperationText, top(dp(8)))
         section.addView(help(
@@ -577,19 +580,24 @@ class MainActivity : Activity() {
 
     private fun section(title: String, subtitle: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = rounded(card, border, 18)
+        setPadding(dp(18), dp(18), dp(18), dp(18))
+        background = rounded(card, border, MonakaTheme.RADIUS_CARD_DP.toInt())
+        // iOS のカードは地からわずかに浮く。影は薄く広く。
+        elevation = dpF(2f)
         addView(TextView(this@MainActivity).apply {
             text = title
+            // iOS の title3 相当。太く、字間はわずかに詰める。
             textSize = 20f
             setTextColor(this@MainActivity.text)
             setTypeface(typeface, Typeface.BOLD)
+            letterSpacing = -0.02f
         })
         addView(TextView(this@MainActivity).apply {
             text = subtitle
             textSize = 13.5f
             setTextColor(muted)
-            setPadding(0, dp(4), 0, 0)
+            setPadding(0, dp(5), 0, 0)
+            setLineSpacing(dpF(2f), 1f)
         })
     }
 
@@ -597,15 +605,22 @@ class MainActivity : Activity() {
         text = value
         textSize = 13f
         setTextColor(muted)
-        setPadding(dp(2), dp(10), dp(2), 0)
+        setPadding(dp(2), dp(11), dp(2), 0)
+        // iOS の本文は行間が広め。長い説明でも読みやすくする。
+        setLineSpacing(dpF(3f), 1f)
     }
 
     private fun badge(value: String) = TextView(this).apply {
         text = value
         textSize = 12.5f
         setTextColor(this@MainActivity.text)
-        setPadding(dp(12), dp(9), dp(12), dp(9))
-        background = rounded(soft, border, 10)
+        setPadding(dp(13), dp(10), dp(13), dp(10))
+        background = IosSurface.SurfaceDrawable(
+            fill = soft,
+            radiusPx = dpF(MonakaTheme.RADIUS_CHIP_DP),
+            // バッジは内部の面なので線を持たず、拡散光も控えめ。
+            sheen = false,
+        )
     }
 
     private fun primary(value: String, click: () -> Unit) = styled(value, accent, Color.WHITE, click)
@@ -614,19 +629,46 @@ class MainActivity : Activity() {
     private fun styled(value: String, bg: Int, fg: Int, click: () -> Unit) = Button(this).apply {
         text = value
         isAllCaps = false
-        textSize = 14f
+        textSize = 15f
         setTextColor(fg)
         setTypeface(typeface, Typeface.BOLD)
-        background = rounded(bg, if (bg == accent) accentDark else border, 12)
+        // iOS のボタンは字間がわずかに詰まり、面は十分な高さを持つ。
+        letterSpacing = -0.01f
+        minHeight = dp(48)
+        minimumHeight = dp(48)
+        // 濃い面（アクセント）は押すと光り、明るい面は陰る。
+        val onAccentFace = bg == accent
+        background = pressable(
+            fill = bg,
+            stroke = if (onAccentFace) accentDark else border,
+            radius = MonakaTheme.RADIUS_CONTROL_DP,
+            ripple = if (onAccentFace) MonakaTheme.rippleOnAccent else MonakaTheme.rippleOnLight,
+        )
         setOnClickListener { click() }
     }
 
-    private fun rounded(fill: Int, stroke: Int, radius: Int) = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        setColor(fill)
-        setStroke(dp(1), stroke)
-        cornerRadius = dp(radius).toFloat()
-    }
+    /**
+     * iOS 27 風の面。角丸は連続曲率、内側に拡散光とごく淡い陰りが入る。
+     * 罫線は iOS のセパレータに合わせて極細・低コントラストにする。
+     */
+    private fun rounded(fill: Int, stroke: Int, radius: Int) = IosSurface.SurfaceDrawable(
+        fill = fill,
+        radiusPx = dpF(radius.toFloat()),
+        strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+        strokeColor = stroke,
+    )
+
+    /** 押せる面（押下で淡く陰る/光る）。 */
+    private fun pressable(fill: Int, stroke: Int, radius: Float, ripple: Int) =
+        IosSurface.pressable(
+            fill = fill,
+            radiusPx = dpF(radius),
+            strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+            strokeColor = stroke,
+            rippleColor = ripple,
+        )
+
+    private fun dpF(value: Float) = value * resources.displayMetrics.density
 
     private fun full() = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,

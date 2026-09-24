@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -94,7 +93,7 @@ class HistoryActivity : Activity() {
                 textSize = 13.5f
                 setTextColor(muted)
                 setPadding(dp(14), dp(16), dp(14), dp(16))
-                background = rounded(soft, border, 12)
+                background = rounded(soft, border, MonakaTheme.RADIUS_CONTROL_DP.toInt())
             })
             return
         }
@@ -102,7 +101,7 @@ class HistoryActivity : Activity() {
             val box = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = rounded(card, border, 14)
+                background = rounded(card, border, MonakaTheme.RADIUS_CARD_DP.toInt())
             }
             box.addView(TextView(this).apply {
                 text = r.displayName()
@@ -235,19 +234,41 @@ class HistoryActivity : Activity() {
     private fun styled(value: String, bg: Int, fg: Int, click: () -> Unit) = Button(this).apply {
         text = value
         isAllCaps = false
-        textSize = 13.5f
+        textSize = 14f
         setTextColor(fg)
         setTypeface(typeface, Typeface.BOLD)
-        background = rounded(bg, if (bg == accent) accentDark else border, 12)
+        letterSpacing = -0.01f
+        minHeight = dp(46)
+        minimumHeight = dp(46)
+        val onAccentFace = bg == accent
+        background = pressable(
+            fill = bg,
+            stroke = if (onAccentFace) MonakaTheme.accentDark else border,
+            radius = MonakaTheme.RADIUS_CONTROL_DP,
+            ripple = if (onAccentFace) MonakaTheme.rippleOnAccent else MonakaTheme.rippleOnLight,
+        )
         setOnClickListener { click() }
     }
 
-    private fun rounded(fill: Int, stroke: Int, radius: Int) = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        setColor(fill)
-        setStroke(dp(1), stroke)
-        cornerRadius = dp(radius).toFloat()
-    }
+    /** iOS 27 風の面（連続曲率 + 内側の拡散光 + 極細の縁）。 */
+    private fun rounded(fill: Int, stroke: Int, radius: Int) = IosSurface.SurfaceDrawable(
+        fill = fill,
+        radiusPx = dpF(radius.toFloat()),
+        strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+        strokeColor = stroke,
+    )
+
+    /** 押せる面（押下で淡く陰る/光る）。 */
+    private fun pressable(fill: Int, stroke: Int, radius: Float, ripple: Int) =
+        IosSurface.pressable(
+            fill = fill,
+            radiusPx = dpF(radius),
+            strokePx = dpF(MonakaTheme.HAIRLINE_DP),
+            strokeColor = stroke,
+            rippleColor = ripple,
+        )
+
+    private fun dpF(value: Float) = value * resources.displayMetrics.density
 
     private fun top(value: Int) = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,
